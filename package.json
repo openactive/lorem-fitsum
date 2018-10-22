@@ -1,0 +1,34 @@
+{
+  "name": "lorem-fitsum",
+  "version": "1.0.0",
+  "description": "Random activity generator",
+  "main": "app.js",
+  "scripts": {
+    "start": "node ./bin/www",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "cookie-parser": "~1.4.3",
+    "debug": "~2.6.9",
+    "ejs": "~2.5.7",
+    "express": "~4.16.0",
+    "faker": "^4.1.0",
+    "http-errors": "~1.6.2",
+    "moment": "^2.22.2",
+    "morgan": "~1.9.0",
+    "sync-request": "^6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openactive/lorem-fitsum.git"
+  },
+  "keywords": [
+    "OpenActive"
+  ],
+  "author": "Nick Evans",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/openactive/lorem-fitsum/issues"
+  },
+  "homepage": "https://github.com/openactive/lorem-fitsum#readme"
+}
