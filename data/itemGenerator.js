@@ -292,7 +292,7 @@ function generateItem(seed, baseUrl) {
 }
 
 function baseUrl(req) {
-  return (req.headers["X-Forwarded-Proto"] || req.protocol) + '://' + req.get('host');
+  return (req.headers["x-forwarded-proto"] || req.protocol) + '://' + req.get('host');
 }
 
 module.exports = {
