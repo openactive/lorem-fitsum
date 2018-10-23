@@ -13,7 +13,16 @@ router.use(function(req, res, next) {
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
-  res.json(generateFeed(req.query.afterChangeNumber || moment().day(-14).unix(), itemGenerator.baseUrl(req), "/api/rpde/sessions"));
+  var changeNumber;
+  if (req.query.afterChangeNumber === undefined) {
+    changeNumber = moment().day(-14).unix();
+  } else {
+    changeNumber = parseInt(req.query.afterChangeNumber);
+    if (isNaN(changeNumber) || roundToNearestHour(moment.unix(changeNumber)).add(1, 'hours').unix() == null) {
+      next(new Error("Invalid afterChangeNumber"));
+    }
+  }
+  res.json(generateFeed(changeNumber, itemGenerator.baseUrl(req), "/api/rpde/sessions"));
 });
 
 function createNextUrl(afterChangeNumber, baseUrl) {

@@ -1,16 +1,86 @@
 var faker = require('faker');
 var postcodes = require('./postcodes');
 var schemes = require('./schemes');
-var moment = require('moment') ;
+var moment = require('moment-timezone');
+const { DateTime, Duration } = require('luxon');
+var RRule = require('rrule').RRule;
+var RRuleSet = require('rrule').RRuleSet;
 
 
 function generateImageUrl(w, h, seed) {
   return `https://picsum.photos/${w}/${h}?image=${seed}`;
 }
 
-function generateImages() {
+function generateInstructionsFromList(golden, list) {
+    return (golden ? list : faker.helpers.shuffle(list).slice(faker.random.number({min: 0, max: list.length - 2}))).join(", ");
+}
+
+function generateAttendeeInstructions(golden) {
+  var clothingInstructions = "Clothing instructions: " + generateInstructionsFromList(golden, [
+    "wear sportswear/gym clothes",
+    "wear comfortable loose clothing",
+    "come as you are",
+    "bring trainers",
+    "wear flat shoes",
+    "no footwear required"
+  ]) + ".";
+
+  var equipment = "Equipment you need to bring: " + generateInstructionsFromList(golden, [
+    "a water bottle",
+    "a sweat towel",
+    "hand weights",
+    "an exercise mat",
+    "boxing gloves",
+    "a skipping rope",
+    "a stretch band",
+    "a locker padlock",
+    "parking/locker money"
+  ]) + ".";
+  
+  return golden || faker.random.boolean() ? clothingInstructions + "\n\n" + equipment : (faker.random.boolean() ? equipment : null );
+}
+
+function generateOffer(baseUrl, golden) {
+  var ageRanges = {
+    "Adult": {
+      "type": "QuantitativeValue",
+      "mixValue": 18,
+      "maxValue": 60
+    },
+    "Junior": {
+      "type": "QuantitativeValue",
+      "maxValue": 18
+    },
+    "Senior": {
+      "type": "QuantitativeValue",
+      "minValue": 60
+    }
+  };
+  var age = faker.random.arrayElement(Object.keys(ageRanges));
+  return {
+    "type": "Offer",
+    "name": age,
+    "price": faker.random.number(3000)/100,
+    "priceCurrency": "GBP",
+    "eligibleCustomerType": getRandomElementsOf([
+      "https://openactive.io/ns-beta#Member"
+    ], golden),
+    "ageRange": ageRanges[age],
+    "beta:availableChannel": getRandomElementsOf([
+      "http://openactive.io/ns-beta#OnlinePrepayment",
+      "http://openactive.io/ns-beta#TelephonePrepayment",
+    ], golden),
+    "acceptedPaymentMethod": getRandomElementsOf([
+      "http://purl.org/goodrelations/v1#Cash",
+      "http://purl.org/goodrelations/v1#PaymentMethodCreditCard"
+    ], golden),
+    "url": baseUrl + "/listings/" + seed.id + "#booking-" + age.toLowerCase()
+  };
+}
+
+function generateImages(golden) {
   var out = [];
-  var imageCount = faker.random.number(6);
+  var imageCount = faker.random.number(golden ? {min: 4, max: 6} : 6);
   for (var i = 0; i < imageCount; i++) {
     var imageSeed = faker.random.number(1083);
     out.push({
@@ -25,10 +95,10 @@ function generateImages() {
   return out;
 }
 
-function generateAgeRange() {
+function generateAgeRange(golden) {
   var maxAgeCeiling = faker.random.number(80);
-  var maxAge = faker.random.boolean() ? maxAgeCeiling : null;
-  var minAge = faker.random.boolean() ? faker.random.number(maxAge || 60) : null;
+  var maxAge = golden || faker.random.boolean() ? maxAgeCeiling : null;
+  var minAge = golden || faker.random.boolean() ? faker.random.number(maxAge || 60) : null;
   if (maxAge == null && minAge == null) minAge = 0;
   var output = {
     "type": "QuantitativeValue"
@@ -36,6 +106,178 @@ function generateAgeRange() {
   if (minAge != null) output.minValue = minAge;
   if (maxAge != null) output.maxValue = maxAge;
   return output;
+}
+
+function generateAmenityFeature(golden) {
+  var amenityFeature = [
+    {
+      "name": "Changing Facilities",
+      "value": faker.random.boolean(),
+      "type": "ChangingFacilities"
+    },
+    {
+      "name": "Showers",
+      "value": faker.random.boolean(),
+      "type": "Showers"
+    },
+    {
+      "name": "Lockers",
+      "value": faker.random.boolean(),
+      "type": "Lockers"
+    },
+    {
+      "name": "Towels",
+      "value": faker.random.boolean(),
+      "type": "Towels"
+    },
+    {
+      "name": "Creche",
+      "value": faker.random.boolean(),
+      "type": "Creche"
+    },
+    {
+      "name": "Parking",
+      "value": faker.random.boolean(),
+      "type": "Parking"
+    }
+  ];
+  return getRandomElementsOf(amenityFeature, golden);
+}
+
+function getRandomElementsOf(array, golden, minimum = 0) {
+  return golden ? array : faker.helpers.shuffle(array).slice(faker.random.number(array.length - minimum));
+}
+
+function generateArrayOf(generateFunction, baseUrl, golden, range) {
+  var output = [];
+  var maxCount = faker.random.number(golden ? range.max : range);
+  for (var i = 0; i < maxCount; i++) {
+    output.push(generateFunction(baseUrl, golden));
+  }
+  return output;
+}
+
+function generateSchedule(modified, baseUrl, golden) {
+  var startTime = moment({hour: faker.random.number({min: 6, max: 22}), minute: faker.random.arrayElement([0, 15, 30, 45])});
+  var duration = faker.random.arrayElement(["PT30M", "PT1H", "PT1H30M", "PT2H"]);
+  var endTime = startTime.clone().add(moment.duration(duration));
+  var schedule = {
+    "type": "Schedule",
+    "startDate": moment.unix(modified).day(-7).utc().format('YYYY-MM-DD'),
+    "endDate": moment.unix(modified).day(faker.random.number({min: 14, max: 28})).utc().format('YYYY-MM-DD'),
+    "repeatFrequency": faker.random.arrayElement(["P1W", "P2W"]),
+    "byDay": getRandomElementsOf(Object.keys(byDayMap), false, 1),
+    "startTime": startTime.format("hh:mm"),
+    "endTime": endTime.format("hh:mm"),
+    "duration": duration,
+    "scheduledEventType": "ScheduledSession",
+    "beta:timeZone": "Europe/London"
+  };
+  // Ensure start and end dates for this schedule match the actual schedule 
+  var occurrences = generateDatesFromSchedule([schedule], modified);
+  schedule.startDate = moment(occurrences[0]).format('YYYY-MM-DD');
+  schedule.endDate = moment(occurrences[occurrences.length - 1]).day(1).format('YYYY-MM-DD');
+  return schedule;
+}
+
+function generatePartialSchedule(modified, baseUrl, golden) {
+  var schedule = generateSchedule(modified, baseUrl, golden);
+  return {
+    "type": "PartialSchedule",
+    "repeatFrequency": schedule.repeatFrequency,
+    "startTime": schedule.startTime,
+    "endTime": schedule.endTime,
+    "byDay": schedule.byDay,
+    "duration": schedule.duration
+  };
+}
+
+const byDayMap = {
+  "http://schema.org/Monday": RRule.MO,
+  "http://schema.org/Tuesday": RRule.TU,
+  "http://schema.org/Wednesday": RRule.WE,
+  "http://schema.org/Thursday": RRule.TH,
+  "http://schema.org/Friday": RRule.FR,
+  "http://schema.org/Saturday": RRule.SA,
+  "http://schema.org/Sunday": RRule.SU
+};
+
+function generateDatesFromSchedule(schedules, modified) {
+  const rruleSet = new RRuleSet()
+
+  // Add a rrule to rruleSet
+  schedules.forEach(schedule => {
+    var frequency = moment.duration(schedule.repeatFrequency);
+    var freq;
+    var interval;
+    if (frequency.asWeeks() > 0) { //only support weekly and daily for now
+      freq = RRule.WEEKLY;
+      interval = frequency.asWeeks();
+    } else {
+      freq = RRule.DAILY; 
+      interval = frequency.asDays();
+    }
+
+    // Create a rule:
+    const rule = new RRule({
+      freq: freq,
+      interval: interval,
+      byweekday: schedule.byDay.map(day => byDayMap[day]),
+      dtstart: DateTime.fromISO(schedule.startDate + "T" + schedule.startTime + "Z").toJSDate(),
+      until: DateTime.fromISO(schedule.endDate).toJSDate(),
+      tzid: schedule["beta:timeZone"] || "Europe/London"
+    })
+
+    rruleSet.rrule(rule);
+  });
+
+  //exceptDate
+
+  // Get a slice:
+  return rruleSet.between(moment.unix(modified).day(-7).utc().toDate(), moment.unix(modified).day(21).utc().toDate())
+}
+
+function generateSubEvents(schedule, modified, maximumAttendeeCapacity, baseUrl, golden) {
+  return generateDatesFromSchedule([schedule], modified).map(o => generateSubEvent(o, schedule.duration, modified, maximumAttendeeCapacity, baseUrl, golden));
+}
+
+function generateSubEvent(startDateISO, duration, modified, maximumAttendeeCapacity, baseUrl, golden) {
+  var startDate = DateTime.fromISO(startDateISO);
+  var endDate = startDate.plus(Duration.fromISO(duration));
+  var remainingAttendeeCapacity = faker.random.number(maximumAttendeeCapacity);
+  return {
+    "type": "ScheduledSession",
+    "startDate": startDate.toISO(),
+    "endDate": endDate.toISO(),
+    "duration": duration,
+    "maximumAttendeeCapacity": maximumAttendeeCapacity,
+    "remainingAttendeeCapacity": remainingAttendeeCapacity,
+    "eventStatus": "https://schema.org/EventScheduled",
+    "url": baseUrl + "/listings/" + modified + "#" + startDateISO
+  }
+}
+
+function generatePerson(baseUrl, golden) {
+  var gender = faker.random.number(1);
+  var id = faker.random.number(5000);
+  var givenName = faker.name.firstName(gender);
+  var familyName = faker.name.lastName(gender);
+  var name = givenName + " " + familyName;
+  var liteRecord = golden ? false : faker.random.boolean();
+
+  return {
+    "type": "Person",
+    "name": name,
+    "familyName": liteRecord ? null : familyName,
+    "givenName": liteRecord ? null : givenName,
+    "gender": golden || faker.random.boolean() ? ["https://schema.org/Male","https://schema.org/Female"][gender] : null,    
+    "jobTitle": faker.random.arrayElement(["Leader", "Team leader", "Host", "Instructor", "Coach", null]),
+    "telephone": liteRecord ? null : faker.phone.phoneNumber("07## ### ####"),
+    "email": liteRecord ? null : faker.internet.exampleEmail(),
+    "url": faker.internet.url() + "/profile/" + faker.random.number(50),
+    "id": baseUrl + "/api/leaders/" + id,
+    "identifier": id
+  };
 }
 
 function generateConcepts(scheme, large, min, max) {
@@ -80,16 +322,18 @@ function removeEmpty (obj) {
   });
 }
 
-function generateItemData(seed, baseUrl) {
+function generateItemData(seed, baseUrl, golden) {
   var company = faker.company.companyName();
   var socialMedia = company.toLowerCase().replace(/[^a-z]*/g,"");
   var orgBaseUrl = faker.internet.url();
   var siteName = faker.address.streetName() + " " + faker.random.arrayElement(["Sports Village", "Leisure Centre", "Centre"]);
   var debugTime = moment.unix(seed.modified).format();
   var postcodeObj = postcodes[faker.random.number(postcodes.length - 1)];
-
+  var schedule = golden || faker.random.boolean() ? generateSchedule(seed.modified, baseUrl, golden) : generatePartialSchedule(seed.modified, baseUrl, golden);
+  var maximumAttendeeCapacity = faker.random.number({min: 1, max: 6}) * 10;
+  var subEvents = (schedule.type == "PartialSchedule" ? null : generateSubEvents(schedule, seed.modified, maximumAttendeeCapacity, baseUrl, golden) );
   return {
-    "@context": "https://openactive.io/",
+    "@context": [ "https://openactive.io/", "https://openactive.io/ns-beta", "http://data.emduk.org/ns/emduk.jsonld" ],
     "id": baseUrl + "/api/opportunities/" + seed.id,
     "identifier": seed.id,
     "ext:dateCreated": debugTime,
@@ -110,24 +354,30 @@ function generateItemData(seed, baseUrl) {
     },
     "activity": generateConcepts("activity-list", true, 1, 3),
     "accessibilitySupport": generateConcepts("accessibility-support", false, 0),
+    "accessibilityInformation": faker.lorem.paragraphs(golden ? 2 : faker.random.number(2)),
+    "beta:isWheelchairAccessible": golden || faker.random.boolean() ? faker.random.boolean() : null,
     "emduk:specialRequirements": generateConcepts("special-requirements", false, 0),
     "category": [
       "Group Exercise Classes",
       "Toning & Strength",
       "Group Exercise - Virtual"
     ],
-    "name": "Virtual BODYPUMP",
-    "description": faker.lorem.paragraphs(faker.random.number(4)),
+    "name": (golden ? "GOLDEN: " : "") + "Virtual BODYPUMP",
+    "description": faker.lorem.paragraphs(golden ? 4 : faker.random.number(4)),
+    "attendeeInstructions": generateAttendeeInstructions(golden),
     "genderRestriction": faker.random.arrayElement(["https://openactive.io/NoRestriction", "https://openactive.io/MaleOnly", "https://openactive.io/FemaleOnly"]),
-    "ageRange": generateAgeRange(),
-    "level": faker.helpers.shuffle(["Beginner", "Intermediate", "Advanced"]).slice(faker.random.number(3)),
-    "image": generateImages(),
+    "ageRange": generateAgeRange(golden),
+    "level": faker.helpers.shuffle(["Beginner", "Intermediate", "Advanced"]).slice(faker.random.number(golden ? {min: 0, max: 1} : 3)),
+    "image": generateImages(golden),
     "url": baseUrl + "/listings/" + seed.id,
+    "leader": generateArrayOf(generatePerson, baseUrl, golden, {min: 0, max: 2}),
+    "contributor": generateArrayOf(generatePerson, baseUrl, golden, {min: 0, max: 4}),
+    "isCoached": golden || faker.random.boolean() ? faker.random.boolean() : null,
     "location": {
       "type": "Place",
       "url": orgBaseUrl + "/" + faker.random.arrayElement(["sites", "centres", "locations"]) + "/" + faker.helpers.slugify(siteName.toLowerCase()),
       "name": siteName,
-      "description": faker.lorem.paragraphs(faker.random.number(4)),
+      "description": faker.lorem.paragraphs(golden ? 4 : faker.random.number(4)),
       "identifier": faker.finance.bic(),
       "address": {
         "type": "PostalAddress",
@@ -144,38 +394,7 @@ function generateItemData(seed, baseUrl) {
         "longitude": postcodeObj.longitude
       },
       "image": generateImages(),
-      "amenityFeature": [
-        {
-          "name": "Changing Facilities",
-          "value": faker.random.boolean(),
-          "type": "ChangingFacilities"
-        },
-        {
-          "name": "Showers",
-          "value": faker.random.boolean(),
-          "type": "Showers"
-        },
-        {
-          "name": "Lockers",
-          "value": faker.random.boolean(),
-          "type": "Lockers"
-        },
-        {
-          "name": "Towels",
-          "value": faker.random.boolean(),
-          "type": "Towels"
-        },
-        {
-          "name": "Creche",
-          "value": faker.random.boolean(),
-          "type": "Creche"
-        },
-        {
-          "name": "Parking",
-          "value": faker.random.boolean(),
-          "type": "Parking"
-        }
-      ],
+      "amenityFeature": generateAmenityFeature(golden),
       "openingHoursSpecification": [
         {
           "type": "OpeningHoursSpecification",
@@ -221,43 +440,17 @@ function generateItemData(seed, baseUrl) {
         }
       ]
     },
-    "eventSchedule": [
-      {
-        "type": "PartialSchedule",
-        "repeatFrequency": "P1W",
-        "startTime": "20:15",
-        "endTime": "20:45",
-        "byDay": [
-          "http://schema.org/Tuesday"
-        ]
-      }
-    ],
-    "subEvent": [
-      {
-        "type": "ScheduledSession",
-        "startDate": "2018-10-02T19:15:00Z",
-        "endDate": "2018-10-02T19:45:00Z",
-        "remainingAttendeeCapacity": 2,
-        "maximumAttendeeCapacity": 16,
-        "eventStatus": "https://schema.org/EventScheduled",
-        "identifier": 1400109454
-      },
-      {
-        "type": "ScheduledSession",
-        "startDate": "2018-10-09T19:15:00Z",
-        "endDate": "2018-10-09T19:45:00Z",
-        "remainingAttendeeCapacity": 12,
-        "maximumAttendeeCapacity": 16,
-        "eventStatus": "https://schema.org/EventScheduled",
-        "identifier": 1400109455
-      }
-    ],
+    "eventSchedule": schedule,
+    "schedulingNote": golden || faker.random.boolean() ? faker.random.arrayElement(["Sessions are not running during school holidays.", "Sessions may be cancelled with 15 minutes notice, please keep an eye on your e-mail.", "Sessions are scheduled with best intentions, but sometimes need to be rescheduled due to venue availability. Ensure that you contact the organizer before turning up."]) : null,
+    "maximumAttendeeCapacity": maximumAttendeeCapacity,
+    "subEvent": subEvents,
     "offers": [
       {
         "type": "Offer",
         "name": "Adult",
         "price": faker.random.number(3000)/100,
         "priceCurrency": "GBP",
+        "eligibleCustomerType": faker.random.boolean() ? ["https://openactive.io/ns-beta#Member"] : null,
         "url": baseUrl + "/listings/" + seed.id + "#booking-adult"
       },
       {
@@ -265,10 +458,19 @@ function generateItemData(seed, baseUrl) {
         "name": "Junior",
         "price": faker.random.number(3000)/100,
         "priceCurrency": "GBP",
+        "eligibleCustomerType": faker.random.boolean() ? ["https://openactive.io/ns-beta#Member"] : null,
         "ageRange": {
           "type": "QuantitativeValue",
           "maxValue": 18
         },
+        "beta:availableChannel": [
+          "http://openactive.io/ns-beta#OnlinePrepayment",
+          "http://openactive.io/ns-beta#TelephonePrepayment",
+        ],
+        "acceptedPaymentMethod": [
+          "http://purl.org/goodrelations/v1#Cash",
+          "http://purl.org/goodrelations/v1#PaymentMethodCreditCard"
+        ],
         "url": baseUrl + "/listings/" + seed.id + "#booking-junior"
       }
     ],
@@ -279,8 +481,8 @@ function generateItemData(seed, baseUrl) {
 function generateItem(seed, baseUrl) {
   faker.locale = "en_GB";
   faker.seed(seed.modified);
-  seed.id = faker.random.number();
-  var data = generateItemData(seed, baseUrl);
+  seed.id = seed.modified;
+  var data = generateItemData(seed, baseUrl, faker.random.boolean());
   removeEmpty(data);
   return {
     "state": "updated",
