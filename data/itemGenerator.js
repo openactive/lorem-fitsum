@@ -10,21 +10,17 @@ function generateImageUrl(w, h, seed) {
   return `https://picsum.photos/${w}/${h}?image=${seed}`;
 }
 
-function generateInstructionsFromList(golden, list) {
-    return (golden ? list : faker.helpers.shuffle(list).slice(faker.random.number({min: 0, max: list.length - 2}))).join(", ");
-}
-
 function generateAttendeeInstructions(golden) {
-  var clothingInstructions = "Clothing instructions: " + generateInstructionsFromList(golden, [
+  var clothingInstructions = "Clothing instructions: " + getRandomElementsOf([
     "wear sportswear/gym clothes",
     "wear comfortable loose clothing",
     "come as you are",
     "bring trainers",
     "wear flat shoes",
     "no footwear required"
-  ]) + ".";
+  ], golden, 1).join(", ") + ".";
 
-  var equipment = "Equipment you need to bring: " + generateInstructionsFromList(golden, [
+  var equipment = "Equipment you need to bring: " + getRandomElementsOf([
     "a water bottle",
     "a sweat towel",
     "hand weights",
@@ -34,12 +30,12 @@ function generateAttendeeInstructions(golden) {
     "a stretch band",
     "a locker padlock",
     "parking/locker money"
-  ]) + ".";
+  ], golden, 1).join(", ") + ".";
   
   return golden || faker.random.boolean() ? clothingInstructions + "\n\n" + equipment : (faker.random.boolean() ? equipment : null );
 }
 
-function generateOffer(baseUrl, golden) {
+function generateOffer(baseUrl, modified, golden) {
   var ageRanges = {
     "Adult": {
       "type": "QuantitativeValue",
@@ -73,7 +69,7 @@ function generateOffer(baseUrl, golden) {
       "http://purl.org/goodrelations/v1#Cash",
       "http://purl.org/goodrelations/v1#PaymentMethodCreditCard"
     ], golden),
-    "url": baseUrl + "/listings/" + seed.id + "#booking-" + age.toLowerCase()
+    "url": baseUrl + "/listings/" + modified + "#booking-" + age.toLowerCase()
   };
 }
 
@@ -147,11 +143,11 @@ function getRandomElementsOf(array, golden, minimum = 0) {
   return golden ? array : faker.helpers.shuffle(array).slice(faker.random.number(array.length - minimum));
 }
 
-function generateArrayOf(generateFunction, baseUrl, golden, range) {
+function generateArrayOf(generateFunction, baseUrl, modified, golden, range) {
   var output = [];
-  var maxCount = faker.random.number(golden ? range.max : range);
+  var maxCount = golden ? range.max : faker.random.number(range);
   for (var i = 0; i < maxCount; i++) {
-    output.push(generateFunction(baseUrl, golden));
+    output.push(generateFunction(baseUrl, modified, golden));
   }
   return output;
 }
@@ -269,7 +265,7 @@ function generatePerson(baseUrl, golden) {
     "familyName": liteRecord ? null : familyName,
     "givenName": liteRecord ? null : givenName,
     "gender": golden || faker.random.boolean() ? ["https://schema.org/Male","https://schema.org/Female"][gender] : null,    
-    "jobTitle": faker.random.arrayElement(["Leader", "Team leader", "Host", "Instructor", "Coach", null]),
+    "jobTitle": faker.random.arrayElement(["Leader", "Team leader", "Host", "Instructor", "Coach", golden ? "Captain" : null]),
     "telephone": liteRecord ? null : faker.phone.phoneNumber("07## ### ####"),
     "email": liteRecord ? null : faker.internet.exampleEmail(),
     "url": faker.internet.url() + "/profile/" + faker.random.number(50),
@@ -278,7 +274,7 @@ function generatePerson(baseUrl, golden) {
   };
 }
 
-function generateConcepts(scheme, large, min, max) {
+function generateConcepts(scheme, golden, large, min, max) {
   var conceptList = schemes[scheme].concept;
   var outputConcepts = [];
 
@@ -297,8 +293,8 @@ function generateConcepts(scheme, large, min, max) {
       }
     }
   } else {
-    var maxCount = faker.random.number({min: min, max: conceptList.length - 1});
-    outputConcepts = faker.helpers.shuffle(conceptList).slice(maxCount);
+    var slice = golden ? 0 : faker.random.number({min: conceptList.length - max, max: conceptList.length - min});
+    outputConcepts = faker.helpers.shuffle(conceptList).slice(slice);
   }
 
   return outputConcepts.map(concept => { return {
@@ -350,11 +346,11 @@ function generateItemData(seed, baseUrl, golden) {
         "https://twitter.com/" + socialMedia
       ]
     },
-    "activity": generateConcepts("activity-list", true, 1, 3),
-    "accessibilitySupport": generateConcepts("accessibility-support", false, 0),
+    "activity": generateConcepts("activity-list", golden, true, 1, 3),
+    "accessibilitySupport": generateConcepts("accessibility-support", golden, false, 0),
     "accessibilityInformation": faker.lorem.paragraphs(golden ? 2 : faker.random.number(2)),
     "beta:isWheelchairAccessible": golden || faker.random.boolean() ? faker.random.boolean() : null,
-    "emduk:specialRequirements": generateConcepts("special-requirements", false, 0),
+    "emduk:specialRequirements": generateConcepts("special-requirements", golden, false, 0),
     "category": [
       "Group Exercise Classes",
       "Toning & Strength",
@@ -368,8 +364,8 @@ function generateItemData(seed, baseUrl, golden) {
     "level": faker.helpers.shuffle(["Beginner", "Intermediate", "Advanced"]).slice(faker.random.number(golden ? {min: 0, max: 1} : 3)),
     "image": generateImages(golden),
     "url": baseUrl + "/listings/" + seed.id,
-    "leader": generateArrayOf(generatePerson, baseUrl, golden, {min: 0, max: 2}),
-    "contributor": generateArrayOf(generatePerson, baseUrl, golden, {min: 0, max: 4}),
+    "leader": generateArrayOf(generatePerson, baseUrl, seed.id, golden, {min: 0, max: 2}),
+    "contributor": generateArrayOf(generatePerson, baseUrl, seed.id, golden, {min: 0, max: 4}),
     "isCoached": golden || faker.random.boolean() ? faker.random.boolean() : null,
     "location": {
       "type": "Place",
@@ -442,37 +438,31 @@ function generateItemData(seed, baseUrl, golden) {
     "schedulingNote": golden || faker.random.boolean() ? faker.random.arrayElement(["Sessions are not running during school holidays.", "Sessions may be cancelled with 15 minutes notice, please keep an eye on your e-mail.", "Sessions are scheduled with best intentions, but sometimes need to be rescheduled due to venue availability. Ensure that you contact the organizer before turning up."]) : null,
     "maximumAttendeeCapacity": maximumAttendeeCapacity,
     "subEvent": subEvents,
-    "offers": [
+    "offers": generateArrayOf(generateOffer, baseUrl, seed.id, golden, {min: 1, max: 4}),
+    "duration": "PT30M",
+    "beta:collection": getRandomElementsOf([
       {
-        "type": "Offer",
-        "name": "Adult",
-        "price": faker.random.number(3000)/100,
-        "priceCurrency": "GBP",
-        "eligibleCustomerType": faker.random.boolean() ? ["https://openactive.io/ns-beta#Member"] : null,
-        "url": baseUrl + "/listings/" + seed.id + "#booking-adult"
+        "type": "beta:ConceptCollection",
+        "id": "https://collections.imin.co/emd-strength-and-conditioning",
+        "title": "Strength and Conditioning",
+        "description": "Group Exercise and Dance classes considered good for Strength and Conditioning.",
+        "beta:creator": "EMD UK",
       },
       {
-        "type": "Offer",
-        "name": "Junior",
-        "price": faker.random.number(3000)/100,
-        "priceCurrency": "GBP",
-        "eligibleCustomerType": faker.random.boolean() ? ["https://openactive.io/ns-beta#Member"] : null,
-        "ageRange": {
-          "type": "QuantitativeValue",
-          "maxValue": 18
-        },
-        "beta:availableChannel": [
-          "http://openactive.io/ns-beta#OnlinePrepayment",
-          "http://openactive.io/ns-beta#TelephonePrepayment",
-        ],
-        "acceptedPaymentMethod": [
-          "http://purl.org/goodrelations/v1#Cash",
-          "http://purl.org/goodrelations/v1#PaymentMethodCreditCard"
-        ],
-        "url": baseUrl + "/listings/" + seed.id + "#booking-junior"
+        "type": "beta:ConceptCollection",
+        "id": "https://collections.imin.co/emd-holistic",
+        "title": "Holistic",
+        "description": "Group Exercise and Dance classes considered Holistic.",
+        "beta:creator": "EMD UK",
+      },
+      {
+        "type": "beta:ConceptCollection",
+        "id": "https://collections.imin.co/emd-cardio",
+        "title": "Cardio",
+        "description": "Group Exercise and Dance classes considered good for Cardio.",
+        "beta:creator": "EMD UK",
       }
-    ],
-    "duration": "PT30M"
+    ], golden)
   };
 }
 

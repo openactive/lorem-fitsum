@@ -18,7 +18,7 @@ router.get('/', function(req, res, next) {
     changeNumber = moment().day(-14).unix();
   } else {
     changeNumber = parseInt(req.query.afterChangeNumber);
-    if (isNaN(changeNumber) || roundToNearestHour(moment.unix(changeNumber)).add(1, 'hours').unix() == null) {
+    if (isNaN(changeNumber) || moment.unix(req.query.afterChangeNumber).toDate() == null) {
       next(new Error("Invalid afterChangeNumber"));
     }
   }
