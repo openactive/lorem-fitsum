@@ -81,10 +81,26 @@ function generateImages(golden) {
     out.push({
       "type": "ImageObject",
       "url": generateImageUrl(1024, 768, imageSeed),
-      "thumbnail": {
-        "type": "ImageObject",
-        "url": generateImageUrl(672, 414, imageSeed) //672 × 414
-      }
+      "thumbnail": getRandomElementsOf([
+        {
+          "type": "ImageObject",
+          "url": generateImageUrl(672, 414, imageSeed),
+          "height": "414 px",
+          "width": "672 px"
+        },
+        {
+          "type": "ImageObject",
+          "url": generateImageUrl(300, 200, imageSeed),
+          "height": "200 px",
+          "width": "300 px"
+        },
+        {
+          "type": "ImageObject",
+          "url": generateImageUrl(100, 100, imageSeed),
+          "height": "100 px",
+          "width": "100 px"
+        }
+      ], golden),
     });
   }
   return out;
