@@ -377,7 +377,7 @@ function generateItemData(seed, baseUrl, golden) {
     "accessibilitySupport": generateConcepts("accessibility-support", golden, false, 0),
     "accessibilityInformation": faker.lorem.paragraphs(golden ? 2 : faker.random.number(2)),
     "beta:isWheelchairAccessible": golden || faker.random.boolean() ? faker.random.boolean() : null,
-    "emduk:specialRequirements": generateConcepts("special-requirements", golden, false, 0),
+    "emduk:specialRequirement": generateConcepts("special-requirements", golden, false, 0),
     "category": [
       "Group Exercise Classes",
       "Toning & Strength",
