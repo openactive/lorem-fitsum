@@ -37,7 +37,7 @@ function generateFeed(lastChangeNumber, baseUrl, feedPath) {
   //Generate 24 items, starting from 1am, to midnight 
   var tickList = [];
   var currentTimestamp = roundToNearestHour(moment.unix(lastChangeNumber));
-  for (var i = 0; i < 240; i++) {
+  for (var i = 0; i < 120; i++) {
     // Only create items that are not in the future
     if (currentTimestamp.diff(moment()) > 0) break;
     // Add 1 hour intervals to cover each day
