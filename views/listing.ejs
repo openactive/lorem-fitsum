@@ -67,8 +67,8 @@
 
                 <% (image || []).forEach(function(image){ %>
                 <div class="swiper-slide">
-                    <a href="/images/reserve-slide2.jpg" class="grid image-link">
-                        <img src="<%= image.thumbnail.url %>" class="img-fluid" alt="#">
+                    <a href="<%= image.url %>" class="grid image-link">
+                        <img src="<%= image.url %>" class="img-fluid" alt="#">
                     </a>
                 </div>
                 <% }); %>
