@@ -445,24 +445,24 @@ function generateItemData(seed, baseUrl, golden) {
     "beta:collection": getRandomElementsOf([
       {
         "type": "beta:ConceptCollection",
-        "id": "https://collections.imin.co/emd-strength-and-conditioning",
+        "id": "https://data.emduk.org/collections/strength-and-conditioning.jsonld",
         "title": "Strength and Conditioning",
         "description": "Group Exercise and Dance classes considered good for Strength and Conditioning.",
-        "beta:creator": "EMD UK",
+        "beta:creator": "EMD UK"
       },
       {
         "type": "beta:ConceptCollection",
-        "id": "https://collections.imin.co/emd-holistic",
+        "id": "https://data.emduk.org/collections/holistic.jsonld",
         "title": "Holistic",
         "description": "Group Exercise and Dance classes considered Holistic.",
-        "beta:creator": "EMD UK",
+        "beta:creator": "EMD UK"
       },
       {
         "type": "beta:ConceptCollection",
-        "id": "https://collections.imin.co/emd-cardio",
+        "id": "https://data.emduk.org/collections/cardio.jsonld",
         "title": "Cardio",
         "description": "Group Exercise and Dance classes considered good for Cardio.",
-        "beta:creator": "EMD UK",
+        "beta:creator": "EMD UK"
       }
     ], golden)
   };
