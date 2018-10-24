@@ -257,6 +257,8 @@ function generateSubEvent(startDateString, duration, tzid, modified, maximumAtte
   var remainingAttendeeCapacity = faker.random.number(maximumAttendeeCapacity);
   return {
     "type": "ScheduledSession",
+    "id": baseUrl + "/api/opportunities/" + modified + "#/subEvent/" + moment.tz(startDateString, null).format(),
+    "identifier": moment.tz(startDateString, null).format(),
     "startDate": startDate.format(),
     "endDate": endDate.format(),
     "duration": duration,
