@@ -39,7 +39,7 @@ function generateOffer(baseUrl, modified, golden) {
   var ageRanges = {
     "Adult": {
       "type": "QuantitativeValue",
-      "mixValue": 18,
+      "maxValue": 18,
       "maxValue": 60
     },
     "Junior": {
