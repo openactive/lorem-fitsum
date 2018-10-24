@@ -231,8 +231,8 @@ function generateDatesFromSchedule(schedules, modified) {
   return rruleSet.between(moment.unix(modified).day(-7).utc().toDate(), moment.unix(modified).day(21).utc().toDate(), true)
 }
 
-function generateSubEvents(schedule, modified, maximumAttendeeCapacity, baseUrl, golden) {
-  return generateDatesFromSchedule([schedule], modified).map(o => generateSubEvent(o, schedule.duration, schedule["beta:timeZone"], modified, maximumAttendeeCapacity, baseUrl, golden));
+function generateSubEvents(schedules, modified, maximumAttendeeCapacity, baseUrl, golden) {
+  return schedules.map(schedule => generateDatesFromSchedule([schedule], modified).map(o => generateSubEvent(o, schedule.duration, schedule["beta:timeZone"], modified, maximumAttendeeCapacity, baseUrl, golden))).reduce((acc, val) => acc.concat(val), []);
 }
 
 function generateSubEvent(startDateString, duration, tzid, modified, maximumAttendeeCapacity, baseUrl, golden) {
@@ -323,9 +323,11 @@ function generateItemData(seed, baseUrl, golden) {
   var siteName = faker.address.streetName() + " " + faker.random.arrayElement(["Sports Village", "Leisure Centre", "Centre"]);
   var debugTime = moment.unix(seed.modified).format();
   var postcodeObj = postcodes[faker.random.number(postcodes.length - 1)];
-  var schedule = golden || faker.random.boolean() ? generateSchedule(seed.modified, baseUrl, golden) : generatePartialSchedule(seed.modified, baseUrl, golden);
+  var schedules = golden || faker.random.boolean() ? 
+    ( golden || faker.random.boolean() ? [ generateSchedule(seed.modified, baseUrl, golden), generateSchedule(seed.modified, baseUrl, golden) ] : [ generateSchedule(seed.modified, baseUrl, golden) ])
+    : [ generatePartialSchedule(seed.modified, baseUrl, golden) ];
   var maximumAttendeeCapacity = faker.random.number({min: 1, max: 6}) * 10;
-  var subEvents = (schedule.type == "PartialSchedule" ? null : generateSubEvents(schedule, seed.modified, maximumAttendeeCapacity, baseUrl, golden) );
+  var subEvents = (schedules[0].type == "PartialSchedule" ? null : generateSubEvents(schedules, seed.modified, maximumAttendeeCapacity, baseUrl, golden) );
   return {
     "@context": [ "https://openactive.io/", "https://openactive.io/ns-beta", "http://data.emduk.org/ns/emduk.jsonld" ],
     "id": baseUrl + "/api/opportunities/" + seed.id,
@@ -434,7 +436,7 @@ function generateItemData(seed, baseUrl, golden) {
         }
       ]
     },
-    "eventSchedule": schedule,
+    "eventSchedule": golden || schedules[0].type == "PartialSchedule" || faker.random.boolean() ? schedules : null,
     "schedulingNote": golden || faker.random.boolean() ? faker.random.arrayElement(["Sessions are not running during school holidays.", "Sessions may be cancelled with 15 minutes notice, please keep an eye on your e-mail.", "Sessions are scheduled with best intentions, but sometimes need to be rescheduled due to venue availability. Ensure that you contact the organizer before turning up."]) : null,
     "maximumAttendeeCapacity": maximumAttendeeCapacity,
     "subEvent": subEvents,
