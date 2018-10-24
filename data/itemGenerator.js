@@ -2,7 +2,6 @@ var faker = require('faker');
 var postcodes = require('./postcodes');
 var schemes = require('./schemes');
 var moment = require('moment-timezone');
-const { DateTime, Duration } = require('luxon');
 var RRule = require('rrule').RRule;
 var RRuleSet = require('rrule').RRuleSet;
 
@@ -175,8 +174,8 @@ function generateSchedule(modified, baseUrl, golden) {
   };
   // Ensure start and end dates for this schedule match the actual schedule 
   var occurrences = generateDatesFromSchedule([schedule], modified);
-  schedule.startDate = moment(occurrences[0]).format('YYYY-MM-DD');
-  schedule.endDate = moment(occurrences[occurrences.length - 1]).day(1).format('YYYY-MM-DD');
+  schedule.startDate = moment.tz(occurrences[0], schedule["beta:timeZone"]).format('YYYY-MM-DD');
+  schedule.endDate = moment.tz(occurrences[occurrences.length - 1], schedule["beta:timeZone"]).format('YYYY-MM-DD');
   return schedule;
 }
 
@@ -208,6 +207,7 @@ function generateDatesFromSchedule(schedules, modified) {
   // Add a rrule to rruleSet
   schedules.forEach(schedule => {
     var frequency = moment.duration(schedule.repeatFrequency);
+    var tzid = schedule["beta:timeZone"] || "Europe/London";
     var freq;
     var interval;
     if (frequency.asWeeks() > 0) { //only support weekly and daily for now
@@ -223,37 +223,35 @@ function generateDatesFromSchedule(schedules, modified) {
       freq: freq,
       interval: interval,
       byweekday: schedule.byDay.map(day => byDayMap[day]),
-      dtstart: DateTime.fromISO(schedule.startDate + "T" + schedule.startTime + "Z").toJSDate(),
-      until: DateTime.fromISO(schedule.endDate).toJSDate(),
-      tzid: schedule["beta:timeZone"] || "Europe/London"
+      dtstart: moment(schedule.startDate + "T" + schedule.startTime + "Z").utc().toDate(),
+      until: moment(schedule.endDate + "T" + schedule.startTime + "Z").utc().toDate(),
+      tzid: tzid
     })
 
     rruleSet.rrule(rule);
   });
 
-  //exceptDate
-
   // Get a slice:
-  return rruleSet.between(moment.unix(modified).day(-7).utc().toDate(), moment.unix(modified).day(21).utc().toDate())
+  return rruleSet.between(moment.unix(modified).day(-7).utc().toDate(), moment.unix(modified).day(21).utc().toDate(), true)
 }
 
 function generateSubEvents(schedule, modified, maximumAttendeeCapacity, baseUrl, golden) {
-  return generateDatesFromSchedule([schedule], modified).map(o => generateSubEvent(o, schedule.duration, modified, maximumAttendeeCapacity, baseUrl, golden));
+  return generateDatesFromSchedule([schedule], modified).map(o => generateSubEvent(o, schedule.duration, schedule["beta:timeZone"], modified, maximumAttendeeCapacity, baseUrl, golden));
 }
 
-function generateSubEvent(startDateISO, duration, modified, maximumAttendeeCapacity, baseUrl, golden) {
-  var startDate = DateTime.fromISO(startDateISO);
-  var endDate = startDate.plus(Duration.fromISO(duration));
+function generateSubEvent(startDateString, duration, tzid, modified, maximumAttendeeCapacity, baseUrl, golden) {
+  var startDate = moment.tz(startDateString, tzid);
+  var endDate = startDate.clone().add(moment.duration(duration));
   var remainingAttendeeCapacity = faker.random.number(maximumAttendeeCapacity);
   return {
     "type": "ScheduledSession",
-    "startDate": startDate.toISO(),
-    "endDate": endDate.toISO(),
+    "startDate": startDate.format(),
+    "endDate": endDate.format(),
     "duration": duration,
     "maximumAttendeeCapacity": maximumAttendeeCapacity,
     "remainingAttendeeCapacity": remainingAttendeeCapacity,
     "eventStatus": "https://schema.org/EventScheduled",
-    "url": baseUrl + "/listings/" + modified + "#" + startDateISO
+    "url": baseUrl + "/listings/" + modified + "#" + moment.tz(startDateString, null).format()
   }
 }
 
