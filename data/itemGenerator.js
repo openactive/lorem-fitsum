@@ -60,30 +60,54 @@ const ageRanges = {
   }
 };
 
-function generateOffers(baseUrl, modified, golden) {
-  return getRandomElementsOf(Object.keys(ageRanges), golden, 1).map(age => generateOffer(age, baseUrl, modified, golden));
+function generateOffers(baseUrl, modified, golden, isAccessibleForFree) {
+  const FREE_ENTRY = "FREE";
+  return getRandomElementsOf(Object.keys(ageRanges), golden, 1).concat(isAccessibleForFree ? [ FREE_ENTRY ] : []).map(age => generateOffer(age, baseUrl, modified, golden, age == FREE_ENTRY));
 }
 
-function generateOffer(age, baseUrl, modified, golden) {
+function generateBrand(golden) {
   return {
-    "type": "Offer",
-    "name": age,
-    "price": faker.random.number(3000)/100,
-    "priceCurrency": "GBP",
-    "eligibleCustomerType": getRandomElementsOf([
-      "https://openactive.io/ns-beta#Member"
-    ], golden),
-    "ageRange": ageRanges[age],
-    "beta:availableChannel": getRandomElementsOf([
-      "http://openactive.io/ns-beta#OnlinePrepayment",
-      "http://openactive.io/ns-beta#TelephonePrepayment",
-    ], golden),
-    "acceptedPaymentMethod": getRandomElementsOf([
-      "http://purl.org/goodrelations/v1#Cash",
-      "http://purl.org/goodrelations/v1#PaymentMethodCreditCard"
-    ], golden),
-    "url": baseUrl + "/listings/" + modified + "#booking-" + age.toLowerCase()
+    "type": "Brand",
+    "name": faker.random.arrayElement(["Keyways Active", "This Girl Can", "Back to Activity", "Mega-active Super Dads"]), 
+    "url": faker.internet.url(),
+    "description": faker.lorem.paragraphs(golden ? 4 : faker.random.number(4)),
+    "logo": {
+      "type": "ImageObject",
+      "url": faker.image.avatar()
+    },
+    "beta:video": "https://www.youtube.com/watch?v=N268gBOvnzo"
   };
+}
+
+function generateOffer(age, baseUrl, modified, golden, free) {
+  if (free) {
+    return {
+      "type": "Offer",
+      "name": "Free Entry",
+      "price": 0,
+      "url": baseUrl + "/listings/" + modified + "#booking-" + age.toLowerCase()
+    };
+  } else {
+    return {
+      "type": "Offer",
+      "name": age,
+      "price": faker.random.number(3000)/100,
+      "priceCurrency": "GBP",
+      "eligibleCustomerType": getRandomElementsOf([
+        "https://openactive.io/ns-beta#Member"
+      ], golden),
+      "ageRange": ageRanges[age],
+      "beta:availableChannel": getRandomElementsOf([
+        "http://openactive.io/ns-beta#OnlinePrepayment",
+        "http://openactive.io/ns-beta#TelephonePrepayment",
+      ], golden),
+      "acceptedPaymentMethod": getRandomElementsOf([
+        "http://purl.org/goodrelations/v1#Cash",
+        "http://purl.org/goodrelations/v1#PaymentMethodCreditCard"
+      ], golden),
+      "url": baseUrl + "/listings/" + modified + "#booking-" + age.toLowerCase()
+    };
+  }
 }
 
 function generateImages(golden) {
@@ -363,6 +387,7 @@ function generateItemData(seed, baseUrl, golden) {
     : [ generatePartialSchedule(seed.modified, baseUrl, golden) ];
   var maximumAttendeeCapacity = faker.random.number({min: 1, max: 6}) * 10;
   var subEvents = (schedules[0].type == "PartialSchedule" ? null : generateSubEvents(schedules, seed.modified, maximumAttendeeCapacity, baseUrl, golden) );
+  var isAccessibleForFree = !golden || faker.random.boolean();
   return {
     "@context": [ "https://openactive.io/", "https://openactive.io/ns-beta", "http://data.emduk.org/ns/emduk.jsonld" ],
     "id": baseUrl + "/api/opportunities/" + seed.id,
@@ -474,9 +499,11 @@ function generateItemData(seed, baseUrl, golden) {
     "eventSchedule": golden || schedules[0].type == "PartialSchedule" || faker.random.boolean() ? schedules : null,
     "schedulingNote": golden || faker.random.boolean() ? faker.random.arrayElement(["Sessions are not running during school holidays.", "Sessions may be cancelled with 15 minutes notice, please keep an eye on your e-mail.", "Sessions are scheduled with best intentions, but sometimes need to be rescheduled due to venue availability. Ensure that you contact the organizer before turning up."]) : null,
     "maximumAttendeeCapacity": maximumAttendeeCapacity,
-    "subEvent": subEvents,
-    "offers": generateOffers(baseUrl, seed.id, golden),
     "duration": "PT30M",
+    "subEvent": subEvents,
+    "isAccessibleForFree": isAccessibleForFree,
+    "offers": generateOffers(baseUrl, seed.id, golden, isAccessibleForFree),
+    "programme": generateBrand(golden),
     "beta:collection": getRandomElementsOf([
       {
         "type": "beta:ConceptCollection",
