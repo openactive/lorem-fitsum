@@ -35,23 +35,36 @@ function generateAttendeeInstructions(golden) {
   return golden || faker.random.boolean() ? clothingInstructions + "\n\n" + equipment : (faker.random.boolean() ? equipment : null );
 }
 
-function generateOffer(baseUrl, modified, golden) {
-  var ageRanges = {
-    "Adult": {
-      "type": "QuantitativeValue",
-      "maxValue": 18,
-      "maxValue": 60
-    },
-    "Junior": {
-      "type": "QuantitativeValue",
-      "maxValue": 18
-    },
-    "Senior": {
-      "type": "QuantitativeValue",
-      "minValue": 60
-    }
-  };
-  var age = faker.random.arrayElement(Object.keys(ageRanges));
+const ageRanges = {
+  "Adult": {
+    "type": "QuantitativeValue",
+    "maxValue": 18,
+    "maxValue": 60
+  },
+  "Adult (Off-peak)": {
+    "type": "QuantitativeValue",
+    "maxValue": 18,
+    "maxValue": 60
+  },
+  "Junior": {
+    "type": "QuantitativeValue",
+    "maxValue": 18
+  },
+  "Junior (Off-peak)": {
+    "type": "QuantitativeValue",
+    "maxValue": 18
+  },
+  "Senior": {
+    "type": "QuantitativeValue",
+    "minValue": 60
+  }
+};
+
+function generateOffers(baseUrl, modified, golden) {
+  return getRandomElementsOf(Object.keys(ageRanges), golden, 1).map(age => generateOffer(age, baseUrl, modified, golden));
+}
+
+function generateOffer(age, baseUrl, modified, golden) {
   return {
     "type": "Offer",
     "name": age,
@@ -279,6 +292,8 @@ function generatePerson(baseUrl, golden) {
 
   return {
     "type": "Person",
+    "id": baseUrl + "/api/leaders/" + id,
+    "identifier": id,
     "name": name,
     "familyName": liteRecord ? null : familyName,
     "givenName": liteRecord ? null : givenName,
@@ -287,8 +302,10 @@ function generatePerson(baseUrl, golden) {
     "telephone": liteRecord ? null : faker.phone.phoneNumber("07## ### ####"),
     "email": liteRecord ? null : faker.internet.exampleEmail(),
     "url": faker.internet.url() + "/profile/" + faker.random.number(50),
-    "id": baseUrl + "/api/leaders/" + id,
-    "identifier": id
+    "image": {
+      "type": "ImageObject",
+      "url": faker.internet.avatar()
+    }
   };
 }
 
@@ -458,7 +475,7 @@ function generateItemData(seed, baseUrl, golden) {
     "schedulingNote": golden || faker.random.boolean() ? faker.random.arrayElement(["Sessions are not running during school holidays.", "Sessions may be cancelled with 15 minutes notice, please keep an eye on your e-mail.", "Sessions are scheduled with best intentions, but sometimes need to be rescheduled due to venue availability. Ensure that you contact the organizer before turning up."]) : null,
     "maximumAttendeeCapacity": maximumAttendeeCapacity,
     "subEvent": subEvents,
-    "offers": generateArrayOf(generateOffer, baseUrl, seed.id, golden, {min: 1, max: 4}),
+    "offers": generateOffers(baseUrl, seed.id, golden),
     "duration": "PT30M",
     "beta:collection": getRandomElementsOf([
       {
