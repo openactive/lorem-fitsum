@@ -9,7 +9,7 @@ var schemes = {
 
 function augmentWithSampleConcepts(scheme) {
   var conceptScheme = new skos.ConceptScheme(scheme);
-  scheme.sample = conceptScheme.getConceptByLabel('Hoop Dance').getNarrowerTransitive().map(concept => concept.getJSON());
+  scheme.sample = conceptScheme.getConceptByLabel('Water-Based Classes').getNarrowerTransitive().map(concept => concept.getJSON());
   return scheme;
 }
 
