@@ -39,7 +39,7 @@ router.get('/', function(req, res, next) {
       next(new Error("Invalid afterChangeNumber"));
     }
   }
-  res.json(generateFeed(changeNumber, itemGenerator.baseUrl(req), "/api/rpde/sessions"));
+  res.json(generateFeed(changeNumber, itemGenerator.baseUrl(req), "/api/rpde/session-series"));
 });
 
 function createNextUrl(afterChangeNumber, baseUrl) {
