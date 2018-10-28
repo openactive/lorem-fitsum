@@ -35,6 +35,7 @@ function generateAttendeeInstructions(golden) {
   return golden || faker.random.boolean() ? clothingInstructions + "\n\n" + equipment : (faker.random.boolean() ? equipment : null );
 }
 
+//Age ranges used to generate offers
 const ageRanges = {
   "Adult": {
     "type": "QuantitativeValue",
@@ -306,6 +307,25 @@ function generateSubEvent(startDateString, duration, tzid, modified, maximumAtte
   }
 }
 
+function generateOrganzier(orgBaseUrl, golden) {
+  var company = faker.company.companyName();
+  var socialMedia = company.toLowerCase().replace(/[^a-z]*/g,"");
+  return {
+    "type": "Organization",
+    "name": company,
+    "url": orgBaseUrl,
+    "logo": {
+      "type": "ImageObject",
+      "url": faker.image.avatar()
+    },
+    "telephone": faker.phone.phoneNumber(),
+    "sameAs": [
+      "https://www.facebook.com/" + socialMedia + "/",
+      "https://twitter.com/" + socialMedia
+    ]
+  }
+}
+
 function generatePerson(baseUrl, golden) {
   var gender = faker.random.number(1);
   var id = faker.random.number(5000);
@@ -334,9 +354,7 @@ function generatePerson(baseUrl, golden) {
 }
 
 function generateConcepts(scheme, golden, large, min, max) {
-  var conceptList = schemes[scheme].concept;
   var outputConcepts = [];
-
   if (large) {
     var index = {};
     // Bias random count towards 1
@@ -344,14 +362,18 @@ function generateConcepts(scheme, golden, large, min, max) {
     if (maxCount > max) maxCount = 1; 
 
     for (var i = 0; i < maxCount; i++) {
-      var conceptIndex = faker.random.number(conceptList.length - 1);
+      // Use the sample set for 50% of cases
+      var conceptList = faker.random.boolean() && typeof schemes[scheme].sample !== 'undefined' ? schemes[scheme].sample : schemes[scheme].concept;
+      var concept = conceptList[faker.random.number(conceptList.length - 1)];
+
       // Check we're not duplicating concepts as we pick them
-      if (!index[conceptIndex]) {
-        outputConcepts.push(conceptList[conceptIndex]);
-        index[conceptIndex] = true;
+      if (!index[concept.id]) {
+        outputConcepts.push(concept);
+        index[concept.id] = true;
       }
     }
   } else {
+    var conceptList = schemes[scheme].concept;
     var slice = golden ? 0 : faker.random.number({min: conceptList.length - max, max: conceptList.length - min});
     outputConcepts = faker.helpers.shuffle(conceptList).slice(slice);
   }
@@ -376,8 +398,6 @@ function removeEmpty (obj) {
 }
 
 function generateItemData(seed, baseUrl, golden) {
-  var company = faker.company.companyName();
-  var socialMedia = company.toLowerCase().replace(/[^a-z]*/g,"");
   var orgBaseUrl = faker.internet.url();
   var siteName = faker.address.streetName() + " " + faker.random.arrayElement(["Sports Village", "Leisure Centre", "Centre"]);
   var debugTime = moment.unix(seed.modified).format();
@@ -401,20 +421,7 @@ function generateItemData(seed, baseUrl, golden) {
     "genderRestriction": faker.random.arrayElement(["https://openactive.io/NoRestriction", "https://openactive.io/MaleOnly", "https://openactive.io/FemaleOnly"]),
     "ageRange": generateAgeRange(golden),
     "level": faker.helpers.shuffle(["Beginner", "Intermediate", "Advanced"]).slice(faker.random.number(golden ? {min: 0, max: 1} : 3)),
-    "organizer": {
-      "type": "Organization",
-      "name": company,
-      "url": orgBaseUrl,
-      "logo": {
-        "type": "ImageObject",
-        "url": faker.image.avatar()
-      },
-      "telephone": faker.phone.phoneNumber(),
-      "sameAs": [
-        "https://www.facebook.com/" + socialMedia + "/",
-        "https://twitter.com/" + socialMedia
-      ]
-    },
+    "organizer": faker.random.boolean() ? generateOrganzier(orgBaseUrl, golden) : generatePerson(baseUrl, golden),
     "activity": generateConcepts("activity-list", golden, true, 1, 3),
     "accessibilitySupport": generateConcepts("accessibility-support", golden, false, 0),
     "accessibilityInformation": faker.lorem.paragraphs(golden ? 2 : faker.random.number(2)),
