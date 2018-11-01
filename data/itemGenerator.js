@@ -307,11 +307,14 @@ function generateSubEvent(startDateString, duration, tzid, modified, maximumAtte
   }
 }
 
-function generateOrganzier(orgBaseUrl, golden) {
+function generateOrganzier(orgBaseUrl, baseUrl, golden) {
   var company = faker.company.companyName();
   var socialMedia = company.toLowerCase().replace(/[^a-z]*/g,"");
+  var id = faker.finance.bic();
   return {
     "type": "Organization",
+    "id": baseUrl + "/api/organizations/" + id,
+    "identifier": id,
     "name": company,
     "url": orgBaseUrl,
     "logo": {
@@ -328,7 +331,7 @@ function generateOrganzier(orgBaseUrl, golden) {
 
 function generatePerson(baseUrl, golden) {
   var gender = faker.random.number(1);
-  var id = faker.random.number(5000);
+  var id = faker.finance.bic();
   var givenName = faker.name.firstName(gender);
   var familyName = faker.name.lastName(gender);
   var name = givenName + " " + familyName;
@@ -421,7 +424,7 @@ function generateItemData(seed, baseUrl, golden) {
     "genderRestriction": faker.random.arrayElement(["https://openactive.io/NoRestriction", "https://openactive.io/MaleOnly", "https://openactive.io/FemaleOnly"]),
     "ageRange": generateAgeRange(golden),
     "level": faker.helpers.shuffle(["Beginner", "Intermediate", "Advanced"]).slice(faker.random.number(golden ? {min: 0, max: 1} : 3)),
-    "organizer": faker.random.boolean() ? generateOrganzier(orgBaseUrl, golden) : generatePerson(baseUrl, golden),
+    "organizer": faker.random.boolean() ? generateOrganzier(orgBaseUrl, baseUrl, golden) : generatePerson(baseUrl, golden),
     "activity": generateConcepts("activity-list", golden, true, 1, 3),
     "accessibilitySupport": generateConcepts("accessibility-support", golden, false, 0),
     "accessibilityInformation": faker.lorem.paragraphs(golden ? 2 : faker.random.number(2)),
@@ -510,30 +513,7 @@ function generateItemData(seed, baseUrl, golden) {
     "subEvent": subEvents,
     "isAccessibleForFree": isAccessibleForFree,
     "offers": generateOffers(baseUrl, seed.id, golden, isAccessibleForFree),
-    "programme": generateBrand(golden),
-    "beta:collection": getRandomElementsOf([
-      {
-        "type": "beta:ConceptCollection",
-        "id": "https://data.emduk.org/collections/strength-and-conditioning.jsonld",
-        "title": "Strength and Conditioning",
-        "description": "Group Exercise and Dance classes considered good for Strength and Conditioning.",
-        "beta:creator": "EMD UK"
-      },
-      {
-        "type": "beta:ConceptCollection",
-        "id": "https://data.emduk.org/collections/holistic.jsonld",
-        "title": "Holistic",
-        "description": "Group Exercise and Dance classes considered Holistic.",
-        "beta:creator": "EMD UK"
-      },
-      {
-        "type": "beta:ConceptCollection",
-        "id": "https://data.emduk.org/collections/cardio.jsonld",
-        "title": "Cardio",
-        "description": "Group Exercise and Dance classes considered good for Cardio.",
-        "beta:creator": "EMD UK"
-      }
-    ], golden)
+    "programme": generateBrand(golden)
   };
 }
 
