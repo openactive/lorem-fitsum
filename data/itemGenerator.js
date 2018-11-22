@@ -382,7 +382,7 @@ function generateConcepts(scheme, golden, large, min, max) {
     }
   } else {
     var conceptList = schemes[scheme].concept;
-    var slice = golden ? 0 : faker.random.number({min: conceptList.length - max, max: conceptList.length - min});
+    var slice = golden ? 0 : faker.random.number({min: 0, max: conceptList.length - min});
     outputConcepts = faker.helpers.shuffle(conceptList).slice(slice);
   }
 
