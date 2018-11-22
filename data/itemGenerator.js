@@ -441,6 +441,12 @@ function generateItemData(seed, baseUrl, golden) {
       "Group Exercise - Virtual"
     ],
     "image": generateImages(golden),
+    "beta:video": golden || faker.random.boolean() ? [
+      {
+        "type": "VideoObject",
+        "url": "https://www.youtube.com/watch?v=xvDZZLqlc-0"
+      }
+    ] : null,
     "leader": generateArrayOf(generatePerson, baseUrl, seed.id, golden, {min: 0, max: 2}),
     "contributor": generateArrayOf(generatePerson, baseUrl, seed.id, golden, {min: 0, max: 4}),
     "isCoached": golden || faker.random.boolean() ? faker.random.boolean() : null,
@@ -465,12 +471,6 @@ function generateItemData(seed, baseUrl, golden) {
         "longitude": postcodeObj.longitude
       },
       "image": generateImages(),
-      "beta:video": golden || faker.random.boolean() ? [
-        {
-          "type": "VideoObject",
-          "url": "https://www.youtube.com/watch?v=xvDZZLqlc-0"
-        }
-      ] : null,
       "amenityFeature": generateAmenityFeature(golden),
       "openingHoursSpecification": [
         {
