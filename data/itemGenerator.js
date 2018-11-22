@@ -465,12 +465,12 @@ function generateItemData(seed, baseUrl, golden) {
         "longitude": postcodeObj.longitude
       },
       "image": generateImages(),
-      "beta:video": [
+      "beta:video": golden || faker.random.boolean() ? [
         {
           "type": "VideoObject",
           "url": "https://www.youtube.com/watch?v=xvDZZLqlc-0"
         }
-      ],
+      ] : null,
       "amenityFeature": generateAmenityFeature(golden),
       "openingHoursSpecification": [
         {
