@@ -104,8 +104,8 @@ function generateOffer(age, baseUrl, modified, golden, free) {
       ], golden),
       "ageRange": ageRanges[age],
       "beta:availableChannel": getRandomElementsOf([
-        "http://openactive.io/ns-beta#OnlinePrepayment",
-        "http://openactive.io/ns-beta#TelephonePrepayment",
+        "https://openactive.io/ns-beta#OnlinePrepayment",
+        "https://openactive.io/ns-beta#TelephonePrepayment",
       ], golden),
       "acceptedPaymentMethod": getRandomElementsOf([
         "http://purl.org/goodrelations/v1#Cash",
@@ -247,13 +247,13 @@ function generatePartialSchedule(modified, baseUrl, golden) {
 }
 
 const byDayMap = {
-  "http://schema.org/Monday": RRule.MO,
-  "http://schema.org/Tuesday": RRule.TU,
-  "http://schema.org/Wednesday": RRule.WE,
-  "http://schema.org/Thursday": RRule.TH,
-  "http://schema.org/Friday": RRule.FR,
-  "http://schema.org/Saturday": RRule.SA,
-  "http://schema.org/Sunday": RRule.SU
+  "https://schema.org/Monday": RRule.MO,
+  "https://schema.org/Tuesday": RRule.TU,
+  "https://schema.org/Wednesday": RRule.WE,
+  "https://schema.org/Thursday": RRule.TH,
+  "https://schema.org/Friday": RRule.FR,
+  "https://schema.org/Saturday": RRule.SA,
+  "https://schema.org/Sunday": RRule.SU
 };
 
 function generateDatesFromSchedule(schedules, modified) {
@@ -417,7 +417,7 @@ function generateItemData(seed, baseUrl, golden) {
   var subEvents = (schedules[0].type == "PartialSchedule" ? null : generateSubEvents(schedules, seed.modified, maximumAttendeeCapacity, baseUrl, golden) );
   var isAccessibleForFree = !golden || faker.random.boolean();
   return {
-    "@context": [ "https://openactive.io/", "https://openactive.io/ns-beta", "http://data.emduk.org/ns/emduk.jsonld" ],
+    "@context": [ "https://openactive.io/", "https://openactive.io/ns-beta", "https://data.emduk.org/ns/emduk.jsonld" ],
     "id": baseUrl + "/api/opportunities/" + seed.id,
     "identifier": seed.id,
     "ext:dateCreated": debugTime,
