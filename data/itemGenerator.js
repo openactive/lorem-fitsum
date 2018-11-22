@@ -76,7 +76,12 @@ function generateBrand(golden) {
       "type": "ImageObject",
       "url": faker.image.avatar()
     },
-    "beta:video": "https://www.youtube.com/watch?v=N268gBOvnzo"
+    "beta:video": [
+      {
+        "type": "VideoObject",
+        "url": "https://www.youtube.com/watch?v=N268gBOvnzo"
+      }
+    ]
   };
 }
 
@@ -460,6 +465,12 @@ function generateItemData(seed, baseUrl, golden) {
         "longitude": postcodeObj.longitude
       },
       "image": generateImages(),
+      "beta:video": [
+        {
+          "type": "VideoObject",
+          "url": "https://www.youtube.com/watch?v=xvDZZLqlc-0"
+        }
+      ],
       "amenityFeature": generateAmenityFeature(golden),
       "openingHoursSpecification": [
         {
