@@ -682,7 +682,6 @@ function generateFacilityUseItemData(seed, baseUrl, golden) {
         }
       ]
     },
-    "isAccessibleForFree": isAccessibleForFree,
     "offers": generateOffers(baseUrl, seed.id, golden, isAccessibleForFree),
     "hoursAvailable": [
       {
