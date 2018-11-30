@@ -287,11 +287,61 @@ function generateDatesFromSchedule(schedules, modified) {
   });
 
   // Get a slice:
-  return rruleSet.between(moment.unix(modified).day(-7).utc().toDate(), moment.unix(modified).day(21).utc().toDate(), true)
+  return rruleSet.between(moment.unix(modified).day(-2).utc().toDate(), moment.unix(modified).day(16).utc().toDate(), true)
 }
+
+function generateSlotDates(modified, slotDuration, tzid) {
+  const rule = new RRule({
+    freq: RRule.MINUTELY,
+    dtstart: moment.unix(modified).day(-7).utc().startOf('day').toDate(),
+    interval: slotDuration,
+    byhour: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+    tzid: tzid
+  })
+
+  // Get a slice:
+  return rule.between(moment.unix(modified).day(-7).startOf('day').utc().toDate(), moment.unix(modified).day(21).startOf('day').utc().toDate(), true)
+}
+
 
 function generateSubEvents(schedules, modified, maximumAttendeeCapacity, baseUrl, golden) {
   return schedules.map(schedule => generateDatesFromSchedule([schedule], modified).map(o => generateSubEvent(o, schedule.duration, schedule["beta:timeZone"], modified, maximumAttendeeCapacity, baseUrl, golden))).reduce((acc, val) => acc.concat(val), []);
+}
+
+function generateSlots(seed, baseUrl, golden) {
+  var modified = seed.modified;
+  var slotDuration = faker.random.arrayElement([30, 60, 120]);
+  var maximumUses = faker.random.number(12);
+  var tzid = "Europe/London";
+  return generateSlotDates(modified, slotDuration, tzid).map(o => generateSlot(o, slotDuration, tzid, modified, maximumUses, baseUrl, golden));
+}
+
+function generateSlot(startDateString, durationMinutes, tzid, modified, maximumUses, baseUrl, golden) {
+  var startDate = moment.tz(startDateString, tzid);
+  var duration = moment.duration(durationMinutes, 'minutes');
+  var endDate = startDate.clone().add(duration);
+  var remainingUses = faker.random.number(maximumUses);
+  var data = {
+    "@context": "https://openactive.io/",
+    "type": "Slot",
+    "id": baseUrl + "/api/facility-uses/" + modified + "/slots/" + moment.tz(startDateString, null).format(),
+    "facilityUse": baseUrl + "/api/facility-uses/" + modified,
+    "startDate": startDate.format(),
+    "endDate": endDate.format(),
+    "duration": duration.toISOString(),
+    "maximumUses": maximumUses,
+    "remainingUses": remainingUses,
+    "offers": [
+      {
+        "type": "Offer",
+        "name": durationMinutes + " minute hire",
+        "price": faker.random.number(12) + (faker.random.boolean() ? 0.5 : 0),
+        "priceCurrency": "GBP",
+        "url": baseUrl + "/listings/facility-uses/" + modified + "#" + moment.tz(startDateString, null).format() + "-booking",
+      }
+    ]
+  };
+  return {data, subId: startDate.unix(), deleted: (golden ? false : faker.random.boolean())};
 }
 
 function generateSubEvent(startDateString, duration, tzid, modified, maximumAttendeeCapacity, baseUrl, golden) {
@@ -380,6 +430,9 @@ function generateConcepts(scheme, golden, large, min, max) {
         index[concept.id] = true;
       }
     }
+  } else if (!large && min == 1 && max == 1) {
+    var conceptList = schemes[scheme].concept;
+    outputConcepts = [faker.random.arrayElement(conceptList)];
   } else {
     var conceptList = schemes[scheme].concept;
     var slice = golden ? 0 : faker.random.number({min: 0, max: conceptList.length - min});
@@ -405,7 +458,7 @@ function removeEmpty (obj) {
   });
 }
 
-function generateItemData(seed, baseUrl, golden) {
+function generateSessionSeriesItemData(seed, baseUrl, golden) {
   var orgBaseUrl = faker.internet.url();
   var siteName = faker.address.streetName() + " " + faker.random.arrayElement(["Sports Village", "Leisure Centre", "Centre"]);
   var debugTime = moment.unix(seed.modified).format();
@@ -416,9 +469,9 @@ function generateItemData(seed, baseUrl, golden) {
   var maximumAttendeeCapacity = faker.random.number({min: 1, max: 6}) * 10;
   var subEvents = (schedules[0].type == "PartialSchedule" ? null : generateSubEvents(schedules, seed.modified, maximumAttendeeCapacity, baseUrl, golden) );
   var isAccessibleForFree = !golden || faker.random.boolean();
-  return {
+  var data = {
     "@context": [ "https://openactive.io/", "https://openactive.io/ns-beta", "https://data.emduk.org/ns/emduk.jsonld" ],
-    "id": baseUrl + "/api/opportunities/" + seed.id,
+    "id": baseUrl + "/api/session-series/" + seed.id,
     "identifier": seed.id,
     "ext:dateCreated": debugTime,
     "type": "SessionSeries",
@@ -526,20 +579,188 @@ function generateItemData(seed, baseUrl, golden) {
     "offers": generateOffers(baseUrl, seed.id, golden, isAccessibleForFree),
     "programme": generateBrand(golden)
   };
+  return [{ data }];
 }
 
-function generateItem(seed, baseUrl) {
+function generateFacilityUseItemData(seed, baseUrl, golden) {
+  var orgBaseUrl = faker.internet.url();
+  var siteName = faker.address.streetName() + " " + faker.random.arrayElement(["Sports Village", "Leisure Centre", "Centre"]);
+  var debugTime = moment.unix(seed.modified).format();
+  var postcodeObj = postcodes[faker.random.number(postcodes.length - 1)];
+  var isAccessibleForFree = !golden || faker.random.boolean();
+  var activity = generateConcepts("facility-activity-list", golden, false, 1, 1);
+  var data = {
+    "@context": [ "https://openactive.io/", "https://openactive.io/ns-beta" ],
+    "id": baseUrl + "/api/facility-uses/" + seed.id,
+    "identifier": seed.id,
+    "ext:dateCreated": debugTime,
+    "type": "FacilityUse",
+    "name": (golden ? "GOLDEN: " : "") + activity[0].prefLabel,
+    "description": faker.lorem.paragraphs(golden ? 4 : faker.random.number(4)),
+    "activity": activity,
+    "provider": generateOrganzier(orgBaseUrl, baseUrl, golden),
+    "url": baseUrl + "/listings/facility-uses/" + seed.id,
+    "attendeeInstructions": faker.lorem.paragraphs(golden ? 2 : faker.random.number(2)),
+    "accessibilitySupport": generateConcepts("accessibility-support", golden, false, 0),
+    "accessibilityInformation": faker.lorem.paragraphs(golden ? 2 : faker.random.number(2)),
+    "beta:isWheelchairAccessible": golden || faker.random.boolean() ? faker.random.boolean() : null,
+    "category": [
+      "Bookable Facilities",
+      "Ball Sports"
+    ],
+    "image": generateImages(golden),
+    "beta:video": golden || faker.random.boolean() ? [
+      {
+        "type": "VideoObject",
+        "url": "https://www.youtube.com/watch?v=xvDZZLqlc-0"
+      }
+    ] : null,
+    "location": {
+      "type": "Place",
+      "url": orgBaseUrl + "/" + faker.random.arrayElement(["sites", "centres", "locations"]) + "/" + faker.helpers.slugify(siteName.toLowerCase()),
+      "name": siteName,
+      "description": faker.lorem.paragraphs(golden ? 4 : faker.random.number(4)),
+      "identifier": faker.finance.bic(),
+      "address": {
+        "type": "PostalAddress",
+        "streetAddress": faker.address.streetAddress(),
+        "addressLocality": "Oxford",
+        "addressRegion": "Oxfordshire",
+        "postalCode": postcodeObj.postcode,
+        "addressCountry": "GB"
+      },
+      "telephone": faker.phone.phoneNumber(),
+      "geo": {
+        "type": "GeoCoordinates",
+        "latitude": postcodeObj.latitude,
+        "longitude": postcodeObj.longitude
+      },
+      "image": generateImages(),
+      "amenityFeature": generateAmenityFeature(golden),
+      "openingHoursSpecification": [
+        {
+          "type": "OpeningHoursSpecification",
+          "dayOfWeek": "https://schema.org/Sunday",
+          "opens": "09:00",
+          "closes": "17:30"
+        },
+        {
+          "type": "OpeningHoursSpecification",
+          "dayOfWeek": "https://schema.org/Monday",
+          "opens": "06:30",
+          "closes": "21:30"
+        },
+        {
+          "type": "OpeningHoursSpecification",
+          "dayOfWeek": "https://schema.org/Tuesday",
+          "opens": "06:30",
+          "closes": "21:30"
+        },
+        {
+          "type": "OpeningHoursSpecification",
+          "dayOfWeek": "https://schema.org/Wednesday",
+          "opens": "06:30",
+          "closes": "21:30"
+        },
+        {
+          "type": "OpeningHoursSpecification",
+          "dayOfWeek": "https://schema.org/Thursday",
+          "opens": "06:30",
+          "closes": "21:30"
+        },
+        {
+          "type": "OpeningHoursSpecification",
+          "dayOfWeek": "https://schema.org/Friday",
+          "opens": "06:30",
+          "closes": "20:30"
+        },
+        {
+          "type": "OpeningHoursSpecification",
+          "dayOfWeek": "https://schema.org/Saturday",
+          "opens": "07:15",
+          "closes": "17:30"
+        }
+      ]
+    },
+    "isAccessibleForFree": isAccessibleForFree,
+    "offers": generateOffers(baseUrl, seed.id, golden, isAccessibleForFree),
+    "hoursAvailable": [
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Sunday",
+        "opens": "09:00",
+        "closes": "17:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Monday",
+        "opens": "06:30",
+        "closes": "21:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Tuesday",
+        "opens": "06:30",
+        "closes": "21:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Wednesday",
+        "opens": "06:30",
+        "closes": "21:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Thursday",
+        "opens": "06:30",
+        "closes": "21:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Friday",
+        "opens": "06:30",
+        "closes": "20:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Saturday",
+        "opens": "07:15",
+        "closes": "17:30"
+      }
+    ]
+  };
+  return [{ data }];
+}
+
+function generateItemWithGenerator(seed, baseUrl, kind, itemGenerator) {
   faker.locale = "en_GB";
   faker.seed(seed.modified);
   seed.id = seed.modified;
-  var data = generateItemData(seed, baseUrl, faker.random.boolean());
-  removeEmpty(data);
-  return {
-    "state": "updated",
-    "kind": "SessionSeries",
-    "id": seed.id,
-    "modified": seed.modified,
-    "data": data
+  var data = itemGenerator(seed, baseUrl, faker.random.boolean());
+  var itemArray = data.map((item) => {
+    var singleItem = {
+      "state": item.deleted ? "deleted" : "updated",
+      "kind": kind,
+      "id": item.subId ? seed.id + '-' + item.subId : seed.id,
+      "modified": seed.modified,
+      "data": item.deleted ? null : item.data
+    };
+    removeEmpty(singleItem);
+    return singleItem;
+  });
+
+  return itemArray;
+}
+
+function generateItem(feedType, seed, baseUrl) {
+  if (feedType == "session-series") {
+    return generateItemWithGenerator(seed, baseUrl, "SessionSeries", generateSessionSeriesItemData);
+  } else if (feedType == "facility-uses") {
+    return generateItemWithGenerator(seed, baseUrl, "FacilityUse", generateFacilityUseItemData);
+  } else if (feedType == "slots") {
+    return generateItemWithGenerator(seed, baseUrl, "FacilityUse/Slot", generateSlots);
+  } else {
+    throw new Error("Invalid feed specified");
   }
 }
 
