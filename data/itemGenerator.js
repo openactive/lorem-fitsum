@@ -341,7 +341,9 @@ function generateSlot(startDateString, durationMinutes, tzid, modified, maximumU
       }
     ]
   };
-  return {data, subId: startDate.unix(), deleted: (golden ? false : faker.random.boolean())};
+  // return {data, subId: startDate.unix(), deleted: (golden ? false : faker.random.boolean())};
+  // Only state:updated slots for now
+  return {data, subId: startDate.unix(), deleted: false };
 }
 
 function generateSubEvent(startDateString, duration, tzid, modified, maximumAttendeeCapacity, baseUrl, golden) {
