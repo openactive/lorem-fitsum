@@ -38,5 +38,6 @@
   "bugs": {
     "url": "https://github.com/openactive/lorem-fitsum/issues"
   },
-  "homepage": "https://github.com/openactive/lorem-fitsum#readme"
+  "homepage": "https://github.com/openactive/lorem-fitsum#readme",
+  "devDependencies": {}
 }
