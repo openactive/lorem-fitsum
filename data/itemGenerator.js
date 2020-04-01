@@ -1,9 +1,10 @@
 var faker = require('faker');
-var postcodes = require('./postcodes');
-var schemes = require('./schemes');
 var moment = require('moment-timezone');
 var RRule = require('rrule').RRule;
 var RRuleSet = require('rrule').RRuleSet;
+var env = require('../env');
+var postcodes = require('./postcodes');
+var schemes = require('./schemes');
 
 
 function generateImageUrl(w, h, seed) {
@@ -39,12 +40,12 @@ function generateAttendeeInstructions(golden) {
 const ageRanges = {
   "Adult": {
     "type": "QuantitativeValue",
-    "maxValue": 18,
+    "minValue": 18,
     "maxValue": 60
   },
   "Adult (Off-peak)": {
     "type": "QuantitativeValue",
-    "maxValue": 18,
+    "minValue": 18,
     "maxValue": 60
   },
   "Junior": {
@@ -211,14 +212,21 @@ function generateArrayOf(generateFunction, baseUrl, modified, golden, range) {
   return output;
 }
 
+/**
+ * @param {number} modified
+ * @param {string} baseUrl
+ * @param {boolean} golden
+ */
 function generateSchedule(modified, baseUrl, golden) {
   var startTime = moment({hour: faker.random.number({min: 6, max: 22}), minute: faker.random.arrayElement([0, 15, 30, 45])});
   var duration = faker.random.arrayElement(["PT30M", "PT1H", "PT1H30M", "PT2H"]);
   var endTime = startTime.clone().add(moment.duration(duration));
   var schedule = {
     "type": "Schedule",
-    "startDate": moment.unix(modified).day(-7).utc().format('YYYY-MM-DD'),
-    "endDate": moment.unix(modified).day(faker.random.number({min: 14, max: 28})).utc().format('YYYY-MM-DD'),
+    "startDate": moment.unix(modified).add(env.SCHEDULE_START_DAY_OFFSET, 'days').utc().format('YYYY-MM-DD'),
+    "endDate": moment.unix(modified)
+      .add(faker.random.number({min: env.SCHEDULE_MIN_END_DAY_OFFSET, max: env.SCHEDULE_MAX_END_DAY_OFFSET}), 'days')
+      .utc().format('YYYY-MM-DD'),
     "repeatFrequency": faker.random.arrayElement(["P1W", "P2W"]),
     "byDay": getRandomElementsOf(Object.keys(byDayMap), false, 1),
     "startTime": startTime.format("hh:mm"),
@@ -460,14 +468,22 @@ function removeEmpty (obj) {
   });
 }
 
+/**
+ * @param {{ modified: number, id: number }} seed
+ * @param {string} baseUrl
+ * @param {boolean} golden
+ */
 function generateSessionSeriesItemData(seed, baseUrl, golden) {
   var orgBaseUrl = faker.internet.url();
   var siteName = faker.address.streetName() + " " + faker.random.arrayElement(["Sports Village", "Leisure Centre", "Centre"]);
   var debugTime = moment.unix(seed.modified).format();
   var postcodeObj = postcodes[faker.random.number(postcodes.length - 1)];
-  var schedules = golden || faker.random.boolean() ? 
-    ( golden || faker.random.boolean() ? [ generateSchedule(seed.modified, baseUrl, golden), generateSchedule(seed.modified, baseUrl, golden) ] : [ generateSchedule(seed.modified, baseUrl, golden) ])
+  var schedules = golden || faker.random.boolean()
+    ?  ( golden || faker.random.boolean()
+      ? [generateSchedule(seed.modified, baseUrl, golden), generateSchedule(seed.modified, baseUrl, golden)]
+      : [generateSchedule(seed.modified, baseUrl, golden)])
     : [ generatePartialSchedule(seed.modified, baseUrl, golden) ];
+
   var maximumAttendeeCapacity = faker.random.number({min: 1, max: 6}) * 10;
   var subEvents = (schedules[0].type == "PartialSchedule" ? null : generateSubEvents(schedules, seed.modified, maximumAttendeeCapacity, baseUrl, golden) );
   var isAccessibleForFree = !golden || faker.random.boolean();
@@ -734,17 +750,22 @@ function generateFacilityUseItemData(seed, baseUrl, golden) {
   return [{ data }];
 }
 
+/**
+ * @param {{ modified: number }} seed
+ * @param {string} baseUrl
+ * @param {string} kind
+ */
 function generateItemWithGenerator(seed, baseUrl, kind, itemGenerator) {
   faker.locale = "en_GB";
   faker.seed(seed.modified);
-  seed.id = seed.modified;
-  var data = itemGenerator(seed, baseUrl, faker.random.boolean());
+  const seedWithId = { ...seed, id: seed.modified };
+  var data = itemGenerator(seedWithId, baseUrl, faker.random.boolean());
   var itemArray = data.map((item) => {
     var singleItem = {
       "state": item.deleted ? "deleted" : "updated",
       "kind": kind,
-      "id": item.subId ? seed.id + '-' + item.subId : seed.id,
-      "modified": seed.modified,
+      "id": item.subId ? seedWithId.id + '-' + item.subId : seedWithId.id,
+      "modified": seedWithId.modified,
       "data": item.deleted ? null : item.data
     };
     removeEmpty(singleItem);
@@ -754,6 +775,11 @@ function generateItemWithGenerator(seed, baseUrl, kind, itemGenerator) {
   return itemArray;
 }
 
+/**
+ * @param {string} feedType
+ * @param {{ modified: number }} seed
+ * @param {string} baseUrl
+ */
 function generateItem(feedType, seed, baseUrl) {
   if (feedType == "session-series") {
     return generateItemWithGenerator(seed, baseUrl, "SessionSeries", generateSessionSeriesItemData);

@@ -1,22 +1,29 @@
 var express = require('express');
+var moment = require('moment');
+var itemGenerator = require('../data/itemGenerator');
+var env = require('../env');
+
 var router = express.Router();
 
-var itemGenerator = require('../data/itemGenerator');
-
-var moment = require('moment');
-
-moment.fn.roundNextMin = function (min) {
-  if (60 % min != 0) throw "60 must be divisible by input: " + min; 
-  var intervals = Math.floor(this.minutes() / min);
+/**
+ * Round a date to the next interval (e.g. to the next hour)
+ *
+ * @param {number} intervalMinutes
+ * @param {import('moment').Moment} momentDate
+ */
+function roundNextMin(intervalMinutes, momentDate) {
+  const newMomentDate = moment(momentDate);
+  if (60 % intervalMinutes !== 0) throw new Error('60 must be divisible by `intervalMinutes`. Value: "' + intervalMinutes + '"');
+  var intervals = Math.floor(newMomentDate.minutes() / intervalMinutes);
   intervals++;
-  if(intervals == 60/min) {
-    this.add('hours', 1);
+  if(intervals == 60/intervalMinutes) {
+    newMomentDate.add(1, 'hours');
     intervals = 0;
   }
-  this.minutes(intervals * min);
-  this.seconds(0);
-  this.milliseconds(0);
-  return this;
+  newMomentDate.minutes(intervals * intervalMinutes);
+  newMomentDate.seconds(0);
+  newMomentDate.milliseconds(0);
+  return newMomentDate;
 }
 
 router.use(function(req, res, next) {
@@ -29,19 +36,19 @@ router.use(function(req, res, next) {
 router.get('/:feed', function(req, res, next) {
   var changeNumber;
   if (req.query.afterChangeNumber === undefined && req.query.afterTimestamp === undefined) {
-    changeNumber = moment().day(-14).unix();
+    changeNumber = moment().add(env.TIMESTAMP_START_DAY_OFFSET, 'days').unix();
   } else {
     changeNumber = parseInt(req.query.afterChangeNumber) || parseInt(req.query.afterTimestamp);
     if (isNaN(changeNumber)) {
-      next(new Error("Invalid afterChangeNumber or afterTimestamp"));
+      return next(new Error("Invalid afterChangeNumber or afterTimestamp"));
     }
   }
   var afterId = req.query.afterId;
   let pageGenerationIntervalMinutes;
   let pageSize;
   if (req.params.feed == "session-series") {
-    pageGenerationIntervalMinutes = 5;
-    pageSize = 60;
+    pageGenerationIntervalMinutes = env.FEED_SESSIONSERIES_TIMESTAMP_INVERVAL_MINUTES;
+    pageSize = env.FEED_SESSIONSERIES_PAGE_SIZE;
   } else if (req.params.feed == "facility-uses") {
     pageGenerationIntervalMinutes = 5;
     pageSize = 60;
@@ -62,6 +69,15 @@ function createNextUrlWithModifiedId(afterTimestamp, afterId, baseUrl) {
   return baseUrl + '?afterTimestamp=' + afterTimestamp + "&afterId=" + afterId;
 }
 
+/**
+ * @param {'session-series' | 'facility-uses' | 'slots'} feedType
+ * @param {number} pageGenerationIntervalMinutes 
+ * @param {number} pageSize 
+ * @param {number} lastChangeNumber 
+ * @param {string} [lastId]
+ * @param {string} baseUrl 
+ * @param {string} feedPath 
+ */
 function generateFeed(feedType, pageGenerationIntervalMinutes, pageSize, lastChangeNumber, lastId, baseUrl, feedPath) {
   var tickList = [];
   if (lastChangeNumber > moment().unix()) {
@@ -69,7 +85,7 @@ function generateFeed(feedType, pageGenerationIntervalMinutes, pageSize, lastCha
     // (this also handles large inputs that break moment)
   } else {
     // Generate 24 items, starting from 1am, to midnight 
-    var currentTimestamp = moment.unix(lastChangeNumber).roundNextMin(pageGenerationIntervalMinutes);
+    var currentTimestamp = roundNextMin(pageGenerationIntervalMinutes, moment.unix(lastChangeNumber));
     for (var i = 0; i < pageSize; i++) {
       // Only create items that are not in the future
       if (currentTimestamp.diff(moment()) > 0) break;
