@@ -13,7 +13,7 @@ var router = express.Router();
  */
 function roundNextMin(intervalMinutes, momentDate) {
   const newMomentDate = moment(momentDate);
-  if (60 % intervalMinutes !== 0) throw new Error('60 must be divisible by `intervalMinutes`. Value: "' + intervalMinutes + '"');
+  if (60 % intervalMinutes !== 0) throw new Error('`intervalMinutes` must be a factor of 60. Value: "' + intervalMinutes + '"');
   var intervals = Math.floor(newMomentDate.minutes() / intervalMinutes);
   intervals++;
   if(intervals == 60/intervalMinutes) {

@@ -6,6 +6,11 @@ var env = require('../env');
 var postcodes = require('./postcodes');
 var schemes = require('./schemes');
 
+const EVENT_ATTENDANCE_MODES = {
+  MIXED: 'https://schema.org/MixedEventAttendanceMode',
+  OFFLINE: 'https://schema.org/OfflineEventAttendanceMode',
+  ONLINE: 'https://schema.org/OnlineEventAttendanceMode',
+};
 
 function generateImageUrl(w, h, seed) {
   return `https://picsum.photos/${w}/${h}?image=${seed}`;
@@ -119,7 +124,7 @@ function generateOffer(age, baseUrl, modified, golden, free) {
 
 function generateImages(golden) {
   var out = [];
-  var imageCount = faker.random.number(golden ? {min: 4, max: 6} : 6);
+  var imageCount = faker.random.number(golden ? {min: 4, max: 6} : { max: 6 });
   for (var i = 0; i < imageCount; i++) {
     var imageSeed = faker.random.number(1083);
     out.push({
@@ -242,6 +247,11 @@ function generateSchedule(modified, baseUrl, golden) {
   return schedule;
 }
 
+/**
+ * @param {number} modified
+ * @param {string} baseUrl
+ * @param {boolean} golden
+ */
 function generatePartialSchedule(modified, baseUrl, golden) {
   var schedule = generateSchedule(modified, baseUrl, golden);
   return {
@@ -312,8 +322,20 @@ function generateSlotDates(modified, slotDuration, tzid) {
 }
 
 
-function generateSubEvents(schedules, modified, maximumAttendeeCapacity, baseUrl, golden) {
-  return schedules.map(schedule => generateDatesFromSchedule([schedule], modified).map(o => generateSubEvent(o, schedule.duration, schedule["beta:timeZone"], modified, maximumAttendeeCapacity, baseUrl, golden))).reduce((acc, val) => acc.concat(val), []);
+/**
+ * @param {(ReturnType<typeof generateSchedule> | ReturnType<typeof generatePartialSchedule>)[]} schedules
+ * @param {number} modified
+ * @param {string} eventAttendanceMode
+ * @param {number} maximumAttendeeCapacity
+ * @param {number} maximumVirtualAttendeeCapacity
+ * @param {string} baseUrl
+ * @param {boolean} golden
+ */
+function generateSubEvents(schedules, modified, eventAttendanceMode, maximumAttendeeCapacity, maximumVirtualAttendeeCapacity, baseUrl, golden) {
+  return schedules.map(schedule =>
+    generateDatesFromSchedule([schedule], modified).map(startDate =>
+      generateSubEvent(startDate, schedule.duration, schedule["beta:timeZone"], modified, eventAttendanceMode, maximumAttendeeCapacity, maximumVirtualAttendeeCapacity, baseUrl, golden))
+  ).reduce((acc, val) => acc.concat(val), []);
 }
 
 function generateSlots(seed, baseUrl, golden) {
@@ -354,21 +376,45 @@ function generateSlot(startDateString, durationMinutes, tzid, modified, maximumU
   return {data, subId: startDate.unix(), deleted: false };
 }
 
-function generateSubEvent(startDateString, duration, tzid, modified, maximumAttendeeCapacity, baseUrl, golden) {
-  var startDate = moment.tz(startDateString, tzid);
-  var endDate = startDate.clone().add(moment.duration(duration));
+/**
+ * @param {Date} startDate
+ * @param {string} duration
+ * @param {string} tzid
+ * @param {number} modified
+ * @param {string} eventAttendanceMode
+ * @param {number} maximumAttendeeCapacity
+ * @param {number} maximumVirtualAttendeeCapacity
+ * @param {string} baseUrl
+ * @param {boolean} golden
+ */
+function generateSubEvent(startDate, duration, tzid, modified, eventAttendanceMode, maximumAttendeeCapacity, maximumVirtualAttendeeCapacity, baseUrl, golden) {
+  var startDateMoment = moment.tz(startDate, tzid);
+  var endDate = startDateMoment.clone().add(moment.duration(duration));
   var remainingAttendeeCapacity = faker.random.number(maximumAttendeeCapacity);
   return {
     "type": "ScheduledSession",
-    "id": baseUrl + "/api/opportunities/" + modified + "#/subEvent/" + moment.tz(startDateString, null).format(),
-    "identifier": moment.tz(startDateString, null).format(),
-    "startDate": startDate.format(),
+    "id": baseUrl + "/api/opportunities/" + modified + "#/subEvent/" + moment.tz(startDate, null).format(),
+    "identifier": moment.tz(startDate, null).format(),
+    "startDate": startDateMoment.format(),
     "endDate": endDate.format(),
     "duration": duration,
     "maximumAttendeeCapacity": maximumAttendeeCapacity,
     "remainingAttendeeCapacity": remainingAttendeeCapacity,
+    "maximumVirtualAttendeeCapacity": (eventAttendanceMode === EVENT_ATTENDANCE_MODES.OFFLINE
+      ? null
+      : (golden
+        ? maximumVirtualAttendeeCapacity
+        : faker.random.arrayElement([maximumVirtualAttendeeCapacity, null]))),
+    'beta:virtualLocation': (eventAttendanceMode === EVENT_ATTENDANCE_MODES.OFFLINE
+      ? null
+      : {
+        type: 'VirtualLocation',
+        url: `https://zoom.us/j/${faker.random.number(9999999)}/signup`,
+        name: faker.lorem.words(3),
+        description: golden ? faker.lorem.words(20) : faker.random.arrayElement([null, faker.lorem.words(20)]),
+      }),
     "eventStatus": "https://schema.org/EventScheduled",
-    "url": baseUrl + "/listings/" + modified + "#" + moment.tz(startDateString, null).format()
+    "url": baseUrl + "/listings/" + modified + "#" + moment.tz(startDate, null).format()
   }
 }
 
@@ -418,6 +464,82 @@ function generatePerson(baseUrl, golden) {
       "type": "ImageObject",
       "url": faker.internet.avatar()
     }
+  };
+}
+
+/**
+ * @param {string} orgBaseUrl
+ * @param {boolean} golden
+ */
+function generatePlace(orgBaseUrl, golden) {
+  var siteName = faker.address.streetName() + " " + faker.random.arrayElement(["Sports Village", "Leisure Centre", "Centre"]);
+  var postcodeObj = postcodes[faker.random.number(postcodes.length - 1)];
+  return {
+    "type": "Place",
+    "url": orgBaseUrl + "/" + faker.random.arrayElement(["sites", "centres", "locations"]) + "/" + faker.helpers.slugify(siteName.toLowerCase()),
+    "name": siteName,
+    "description": faker.lorem.paragraphs(golden ? 4 : faker.random.number(4)),
+    "identifier": faker.finance.bic(),
+    "address": {
+      "type": "PostalAddress",
+      "streetAddress": faker.address.streetAddress(),
+      "addressLocality": "Oxford",
+      "addressRegion": "Oxfordshire",
+      "postalCode": postcodeObj.postcode,
+      "addressCountry": "GB"
+    },
+    "telephone": faker.phone.phoneNumber(),
+    "geo": {
+      "type": "GeoCoordinates",
+      "latitude": postcodeObj.latitude,
+      "longitude": postcodeObj.longitude
+    },
+    "image": generateImages(),
+    "amenityFeature": generateAmenityFeature(golden),
+    "openingHoursSpecification": [
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Sunday",
+        "opens": "09:00",
+        "closes": "17:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Monday",
+        "opens": "06:30",
+        "closes": "21:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Tuesday",
+        "opens": "06:30",
+        "closes": "21:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Wednesday",
+        "opens": "06:30",
+        "closes": "21:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Thursday",
+        "opens": "06:30",
+        "closes": "21:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Friday",
+        "opens": "06:30",
+        "closes": "20:30"
+      },
+      {
+        "type": "OpeningHoursSpecification",
+        "dayOfWeek": "https://schema.org/Saturday",
+        "opens": "07:15",
+        "closes": "17:30"
+      }
+    ]
   };
 }
 
@@ -475,17 +597,24 @@ function removeEmpty (obj) {
  */
 function generateSessionSeriesItemData(seed, baseUrl, golden) {
   var orgBaseUrl = faker.internet.url();
-  var siteName = faker.address.streetName() + " " + faker.random.arrayElement(["Sports Village", "Leisure Centre", "Centre"]);
   var debugTime = moment.unix(seed.modified).format();
-  var postcodeObj = postcodes[faker.random.number(postcodes.length - 1)];
   var schedules = golden || faker.random.boolean()
     ?  ( golden || faker.random.boolean()
       ? [generateSchedule(seed.modified, baseUrl, golden), generateSchedule(seed.modified, baseUrl, golden)]
       : [generateSchedule(seed.modified, baseUrl, golden)])
     : [ generatePartialSchedule(seed.modified, baseUrl, golden) ];
-
   var maximumAttendeeCapacity = faker.random.number({min: 1, max: 6}) * 10;
-  var subEvents = (schedules[0].type == "PartialSchedule" ? null : generateSubEvents(schedules, seed.modified, maximumAttendeeCapacity, baseUrl, golden) );
+  const eventAttendanceMode = (golden
+    ? EVENT_ATTENDANCE_MODES.MIXED
+    // Heavily biased toward non-offline modes during these dark and uncertain times (COVID19)
+    : faker.random.arrayElement([
+      EVENT_ATTENDANCE_MODES.ONLINE, EVENT_ATTENDANCE_MODES.ONLINE,
+      EVENT_ATTENDANCE_MODES.MIXED, EVENT_ATTENDANCE_MODES.MIXED,
+      EVENT_ATTENDANCE_MODES.OFFLINE]));
+  const maximumVirtualAttendeeCapacity = faker.random.number({ min: 1, max: 6}) * 10;
+  var subEvents = (schedules[0].type == "PartialSchedule")
+    ? null
+    : generateSubEvents(schedules, seed.modified, eventAttendanceMode, maximumAttendeeCapacity, maximumVirtualAttendeeCapacity, baseUrl, golden);
   var isAccessibleForFree = !golden || faker.random.boolean();
   var data = {
     "@context": [ "https://openactive.io/", "https://openactive.io/ns-beta", "https://data.emduk.org/ns/emduk.jsonld" ],
@@ -494,12 +623,13 @@ function generateSessionSeriesItemData(seed, baseUrl, golden) {
     "ext:dateCreated": debugTime,
     "type": "SessionSeries",
     "name": (golden ? "GOLDEN: " : "") + "Virtual BODYPUMP",
+    "eventAttendanceMode": eventAttendanceMode,
     "description": faker.lorem.paragraphs(golden ? 4 : faker.random.number(4)),
     "url": baseUrl + "/listings/" + seed.id,
     "attendeeInstructions": generateAttendeeInstructions(golden),
     "genderRestriction": faker.random.arrayElement(["https://openactive.io/NoRestriction", "https://openactive.io/MaleOnly", "https://openactive.io/FemaleOnly"]),
     "ageRange": generateAgeRange(golden),
-    "level": faker.helpers.shuffle(["Beginner", "Intermediate", "Advanced"]).slice(faker.random.number(golden ? {min: 0, max: 1} : 3)),
+    "level": faker.helpers.shuffle(["Beginner", "Intermediate", "Advanced"]).slice(faker.random.number(golden ? {min: 0, max: 1} : { max: 3 })),
     "organizer": faker.random.boolean() ? generateOrganzier(orgBaseUrl, baseUrl, golden) : generatePerson(baseUrl, golden),
     "activity": generateConcepts("activity-list", golden, true, 1, 3),
     "accessibilitySupport": generateConcepts("accessibility-support", golden, false, 0),
@@ -521,73 +651,12 @@ function generateSessionSeriesItemData(seed, baseUrl, golden) {
     "leader": generateArrayOf(generatePerson, baseUrl, seed.id, golden, {min: 0, max: 2}),
     "contributor": generateArrayOf(generatePerson, baseUrl, seed.id, golden, {min: 0, max: 4}),
     "isCoached": golden || faker.random.boolean() ? faker.random.boolean() : null,
-    "location": {
-      "type": "Place",
-      "url": orgBaseUrl + "/" + faker.random.arrayElement(["sites", "centres", "locations"]) + "/" + faker.helpers.slugify(siteName.toLowerCase()),
-      "name": siteName,
-      "description": faker.lorem.paragraphs(golden ? 4 : faker.random.number(4)),
-      "identifier": faker.finance.bic(),
-      "address": {
-        "type": "PostalAddress",
-        "streetAddress": faker.address.streetAddress(),
-        "addressLocality": "Oxford",
-        "addressRegion": "Oxfordshire",
-        "postalCode": postcodeObj.postcode,
-        "addressCountry": "GB"
-      },
-      "telephone": faker.phone.phoneNumber(),
-      "geo": {
-        "type": "GeoCoordinates",
-        "latitude": postcodeObj.latitude,
-        "longitude": postcodeObj.longitude
-      },
-      "image": generateImages(),
-      "amenityFeature": generateAmenityFeature(golden),
-      "openingHoursSpecification": [
-        {
-          "type": "OpeningHoursSpecification",
-          "dayOfWeek": "https://schema.org/Sunday",
-          "opens": "09:00",
-          "closes": "17:30"
-        },
-        {
-          "type": "OpeningHoursSpecification",
-          "dayOfWeek": "https://schema.org/Monday",
-          "opens": "06:30",
-          "closes": "21:30"
-        },
-        {
-          "type": "OpeningHoursSpecification",
-          "dayOfWeek": "https://schema.org/Tuesday",
-          "opens": "06:30",
-          "closes": "21:30"
-        },
-        {
-          "type": "OpeningHoursSpecification",
-          "dayOfWeek": "https://schema.org/Wednesday",
-          "opens": "06:30",
-          "closes": "21:30"
-        },
-        {
-          "type": "OpeningHoursSpecification",
-          "dayOfWeek": "https://schema.org/Thursday",
-          "opens": "06:30",
-          "closes": "21:30"
-        },
-        {
-          "type": "OpeningHoursSpecification",
-          "dayOfWeek": "https://schema.org/Friday",
-          "opens": "06:30",
-          "closes": "20:30"
-        },
-        {
-          "type": "OpeningHoursSpecification",
-          "dayOfWeek": "https://schema.org/Saturday",
-          "opens": "07:15",
-          "closes": "17:30"
-        }
-      ]
-    },
+    // location MUST not be provided for fully virtual sessions
+    "location": (eventAttendanceMode === EVENT_ATTENDANCE_MODES.ONLINE) ? null : generatePlace(orgBaseUrl, golden),
+    // beta:affiliatedLocation MAY be provided for fully virtual sessions
+    "beta:affiliatedLocation": (eventAttendanceMode === EVENT_ATTENDANCE_MODES.ONLINE && faker.random.boolean())
+      ? generatePlace(orgBaseUrl, golden)
+      : null,
     "eventSchedule": golden || schedules[0].type == "PartialSchedule" || faker.random.boolean() ? schedules : null,
     "schedulingNote": golden || faker.random.boolean() ? faker.random.arrayElement(["Sessions are not running during school holidays.", "Sessions may be cancelled with 15 minutes notice, please keep an eye on your e-mail.", "Sessions are scheduled with best intentions, but sometimes need to be rescheduled due to venue availability. Ensure that you contact the organizer before turning up."]) : null,
     "maximumAttendeeCapacity": maximumAttendeeCapacity,
@@ -595,7 +664,26 @@ function generateSessionSeriesItemData(seed, baseUrl, golden) {
     "subEvent": subEvents,
     "isAccessibleForFree": isAccessibleForFree,
     "offers": generateOffers(baseUrl, seed.id, golden, isAccessibleForFree),
-    "programme": generateBrand(golden)
+    "programme": generateBrand(golden),
+    'beta:isInteractivityPreferred': (eventAttendanceMode === EVENT_ATTENDANCE_MODES.OFFLINE
+      ? null
+      : (golden
+        ? true
+        : faker.random.arrayElement([true, false, null]))),
+    'beta:isVirtuallyCoached': (eventAttendanceMode === EVENT_ATTENDANCE_MODES.OFFLINE
+      ? null
+      : (golden
+        ? true
+        : faker.random.arrayElement([true, false, null]))),
+    'beta:participantSuppliedEquipment': (eventAttendanceMode === EVENT_ATTENDANCE_MODES.OFFLINE
+      ? null
+      : (golden
+        ? 'https://openactive.io/Optional'
+        : faker.random.arrayElement([
+          'https://openactive.io/Required',
+          'https://openactive.io/Optional',
+          'https://openactive.io/Unavailable',
+          null]))),
   };
   return [{ data }];
 }
